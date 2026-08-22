@@ -348,7 +348,14 @@ function addRhythm(notes: NoteEvent[], plan: TrackPlan, bar: number, section: Se
     const straight = i * 4 / hats;
     notes.push({ beat: start + swingOffset(config, straight), duration: .08, pitch: config.drums === "swing" ? 51 : 42, velocity: 38 + section.energy * 26 + (i % 2) * 7, instrument: 128 });
   }
-  if (bar === section.startBar + section.bars - 1 && section.energy > .6) for (let i = 0; i < 4; i++) notes.push({ beat: start + 3 + i * .25, duration: .08, pitch: 45 + i * 2, velocity: 66 + i * 7, instrument: 128 });
+  if (bar === section.startBar + section.bars - 1 && section.energy > .52) {
+    const fill = pick(random(`${plan.seed}:fill:${bar}`), [
+      [[3, 45], [3.25, 47], [3.5, 48], [3.75, 50]],
+      [[2.5, 45], [3, 47], [3.25, 48], [3.5, 50], [3.75, 57]],
+      [[2.75, 43], [3, 45], [3.5, 47], [3.75, 49]],
+    ]);
+    fill.forEach(([beat, pitch], index) => notes.push({ beat: start + beat, duration: .08, pitch, velocity: 72 + section.energy * 18 + index * 5, instrument: 128 }));
+  }
 }
 
 function addBass(notes: NoteEvent[], plan: TrackPlan, bar: number, section: SectionPlan) {

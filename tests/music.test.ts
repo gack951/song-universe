@@ -72,6 +72,21 @@ test("songs contain theme, harmony, bass, rhythm and a bounded cadence", () => {
   }
 });
 
+test("drum fills are varied and audible at section endings", () => {
+  const patterns = new Set<string>();
+  for (let seed = 0; seed < 12; seed++) {
+    const plan = createTrackPlan(`fills-${seed}`, "funk");
+    const drums = buildSong(plan).notes.filter(note => note.instrument === 128);
+    for (const section of plan.sections.filter(part => part.energy > .52)) {
+      const start = (section.startBar + section.bars) * 4 - 1.5;
+      const fill = drums.filter(note => note.beat >= start && note.pitch >= 43 && note.pitch !== 51);
+      assert.ok(fill.length >= 4 && fill.some(note => note.velocity >= 82));
+      patterns.add(fill.map(note => `${(note.beat - start).toFixed(2)}:${note.pitch}`).join("|"));
+    }
+  }
+  assert.ok(patterns.size >= 3);
+});
+
 test("instrumentation varies by song and expands big band and classical ensembles", () => {
   for (const genre of genres) {
     const arrangements = new Set(Array.from({ length: 16 }, (_, index) => JSON.stringify(createTrackPlan(`${genre}-${index}`, genre).instruments)));
