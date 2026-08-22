@@ -1,93 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { GENRES, aiParts, buildSong, createTrackPlan, initializeAI, newSeed, tooSimilar, type Genre, type NoteEvent, type PlaybackState, type Song } from "./music";
-
-type Synth = import("spessasynth_lib").WorkletSynthesizer;
-
-class AudioEngine {
-  context?: AudioContext;
-  synth?: Synth;
-  pack?: string;
-  marker?: AudioScheduledSourceNode;
-  token = 0;
-
-  async prepare(pack: string) {
-    this.context ??= new AudioContext({ latencyHint: "playback" });
-    await this.context.resume();
-    if (!this.synth) {
-      await this.context.audioWorklet.addModule("/worklets/spessasynth_processor.min.js");
-      const { WorkletSynthesizer } = await import("spessasynth_lib");
-      this.synth = new WorkletSynthesizer(this.context, { eventsEnabled: false });
-      this.synth.connect(this.context.destination);
-      await this.synth.isReady;
-    }
-    if (this.pack !== pack) {
-      const response = await caches.match(`/soundfonts/${pack}.sf3`) ?? await fetch(`/soundfonts/${pack}.sf3`);
-      if (!response.ok) throw new Error("音源の取得に失敗しました。");
-      const previous = this.pack;
-      await this.synth.soundBankManager.addSoundBank(await response.arrayBuffer(), pack);
-      this.synth.soundBankManager.priorityOrder = [pack, ...this.synth.soundBankManager.priorityOrder.filter(id => id !== pack)];
-      if (previous) await this.synth.soundBankManager.deleteSoundBank(previous);
-      this.pack = pack;
-    }
-  }
-
-  private schedule(notes: NoteEvent[], bpm: number, start: number) {
-    if (!this.synth) return;
-    const channels = new Map<number, number>();
-    let nextChannel = 0;
-    for (const instrument of new Set(notes.map(note => note.instrument))) {
-      if (instrument === 128) { channels.set(instrument, 9); this.synth.midiChannels[9].setDrums(true); continue; }
-      if (nextChannel === 9) nextChannel++;
-      channels.set(instrument, nextChannel);
-      this.synth.programChange(nextChannel, instrument, { time: start });
-      nextChannel++;
-    }
-    const secondsPerBeat = 60 / bpm;
-    for (const note of notes) {
-      const channel = channels.get(note.instrument) ?? 0;
-      this.synth.noteOn(channel, note.pitch, note.velocity, { time: start + note.beat * secondsPerBeat });
-      this.synth.noteOff(channel, note.pitch, { time: start + (note.beat + note.duration) * secondsPerBeat });
-    }
-  }
-
-  private mark(time: number, callback: () => void) {
-    if (!this.context) return;
-    const source = this.context.createConstantSource();
-    const gain = this.context.createGain();
-    gain.gain.value = 0;
-    source.connect(gain).connect(this.context.destination);
-    source.onended = callback;
-    source.start();
-    source.stop(time);
-    this.marker = source;
-  }
-
-  play(song: Song, onFinish: () => void) {
-    if (!this.context || !this.synth) return;
-    const token = ++this.token;
-    this.synth.stopAll(true);
-    const start = this.context.currentTime + .08;
-    this.schedule(song.notes, song.plan.bpm, start);
-    this.mark(start + song.plan.durationSeconds + 1, () => token === this.token && onFinish());
-  }
-
-  extend(song: Song, onFinish: () => void) {
-    if (!this.context) return;
-    const beats = 32;
-    const total = song.plan.chords.length * 4;
-    const notes = song.notes.filter(note => note.beat >= total - beats).map(note => ({ ...note, beat: note.beat - (total - beats) }));
-    const start = this.context.currentTime + .03;
-    const token = ++this.token;
-    this.schedule(notes, song.plan.bpm, start);
-    this.mark(start + beats * 60 / song.plan.bpm, () => token === this.token && onFinish());
-  }
-
-  async pause() { await this.context?.suspend(); }
-  async resume() { await this.context?.resume(); }
-  stop() { this.token++; this.synth?.stopAll(true); this.marker?.disconnect(); }
-}
+import { AudioEngine } from "./audio";
+import { GENRES, aiParts, buildSong, createTrackPlan, initializeAI, newSeed, tooSimilar, type Genre, type PlaybackState, type Song } from "./music";
 
 const engine = new AudioEngine();
 const genreOrder = Object.keys(GENRES) as Genre[];
@@ -151,6 +66,7 @@ export default function Player() {
   const currentRef = useRef<Song | undefined>(undefined);
   const started = useRef(false);
   const extended = useRef(false);
+  const transitioning = useRef(false);
 
   const compose = useCallback(async (targetGenre: Genre) => {
     const plan = createTrackPlan(newSeed(), targetGenre);
@@ -192,43 +108,63 @@ export default function Player() {
     navigator.mediaSession.playbackState = "playing";
   }, []);
 
-  const advanceRef = useRef<() => Promise<void>>(async () => {});
+  const advanceRef = useRef<(discardScheduled?: boolean) => Promise<void>>(async () => {});
   const playSong = useCallback(async (song: Song) => {
     setState("loading");
     await engine.prepare(GENRES[song.plan.genre].pack);
-    engine.play(song, () => void advanceRef.current());
+    engine.play(song, () => void advanceRef.current(false));
     queue.current[0] = song; currentRef.current = song; setCurrent(song); setState("playing"); updateMediaSession(song); extended.current = false;
     void (async () => { while (queue.current.length < 3) queue.current.push(await compose(desiredGenre.current)); })();
   }, [compose, updateMediaSession]);
 
-  const advance = useCallback(async () => {
-    engine.stop();
-    if (queue.current[0] === currentRef.current) queue.current.shift();
-    let next = queue.current[0];
-    if (next && next.plan.genre !== desiredGenre.current) {
-      generation.current++;
+  const advance = useCallback(async (discardScheduled = false) => {
+    if (transitioning.current) return;
+    transitioning.current = true;
+    try {
+      engine.stop(discardScheduled);
+      if (queue.current[0] === currentRef.current) queue.current.shift();
+      let next = queue.current[0];
+      if (next && next.plan.genre !== desiredGenre.current) {
+        generation.current++;
+        setState("buffering");
+        next = await compose(desiredGenre.current);
+        queue.current = [next];
+      }
+      if (next) { await playSong(next); return; }
+      if (!discardScheduled && !extended.current && currentRef.current) {
+        extended.current = true; setState("playing");
+        engine.extend(currentRef.current, () => void advanceRef.current(false));
+        return;
+      }
       setState("buffering");
-      next = await compose(desiredGenre.current);
-      queue.current = [next];
-    }
-    if (next) { await playSong(next); return; }
-    if (!extended.current && currentRef.current) {
-      extended.current = true; setState("playing");
-      engine.extend(currentRef.current, () => void advanceRef.current());
-      return;
-    }
-    setState("buffering");
-    const song = await compose(desiredGenre.current); queue.current = [song]; await playSong(song);
+      const song = await compose(desiredGenre.current); queue.current = [song]; await playSong(song);
+    } finally { transitioning.current = false; }
   }, [compose, playSong]);
   useEffect(() => { advanceRef.current = advance; }, [advance]);
 
   const toggle = useCallback(async () => {
     try {
-      if (!started.current) { started.current = true; await playSong(queue.current[0]); return; }
+      if (!started.current) {
+        if (transitioning.current) return;
+        transitioning.current = true;
+        try {
+          const targetGenre = desiredGenre.current;
+          let first = queue.current[0];
+          if (!first || first.plan.genre !== targetGenre) {
+            generation.current++;
+            setState("loading");
+            first = await compose(targetGenre);
+            queue.current = [first];
+          }
+          started.current = true;
+          await playSong(first);
+        } finally { transitioning.current = false; }
+        return;
+      }
       if (state === "playing") { await engine.pause(); setState("paused"); if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused"; }
       else { await engine.resume(); setState("playing"); if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing"; }
     } catch (cause) { setError(cause instanceof Error ? cause.message : "再生できませんでした。"); setState("error"); }
-  }, [playSong, state]);
+  }, [compose, playSong, state]);
 
   const chooseGenre = useCallback((next: Genre) => {
     setGenre(next); desiredGenre.current = next;
@@ -239,14 +175,14 @@ export default function Player() {
   useEffect(() => {
     const timer = setTimeout(() => void prepare(), 0);
     navigator.serviceWorker?.register("/sw.js");
-    return () => { clearTimeout(timer); engine.stop(); };
+    return () => { clearTimeout(timer); engine.stop(true); };
   }, [prepare]);
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
     navigator.mediaSession.setActionHandler("play", () => void toggle());
     navigator.mediaSession.setActionHandler("pause", () => void toggle());
-    navigator.mediaSession.setActionHandler("nexttrack", () => void advance());
+    navigator.mediaSession.setActionHandler("nexttrack", () => void advance(true));
     return () => { for (const action of ["play", "pause", "nexttrack"] as MediaSessionAction[]) navigator.mediaSession.setActionHandler(action, null); };
   }, [advance, toggle]);
 
@@ -270,7 +206,7 @@ export default function Player() {
       {error ? <div className="error" role="alert"><p>{error}</p><button onClick={() => void prepare()}>再取得・再試行</button></div> : null}
       <div className="controls">
         <button className="play" onClick={() => void toggle()} disabled={!ready} aria-label={playing ? "一時停止" : current ? "再生" : "最初の曲を再生"}>{playing ? "Ⅱ" : "▶"}</button>
-        <button className="next" onClick={() => void advance()} disabled={!current || state === "loading"} aria-label="次の曲">NEXT <span>→</span></button>
+        <button className="next" onClick={() => void advance(true)} disabled={!current || state === "loading"} aria-label="次の曲">NEXT <span>→</span></button>
       </div>
     </section>
     <nav aria-label="次の曲のジャンル"><span>NEXT GENRE</span><div>{genreOrder.map(item => <button key={item} className={genre === item ? "selected" : ""} onClick={() => chooseGenre(item)} aria-pressed={genre === item}>{GENRES[item].label}</button>)}</div></nav>
