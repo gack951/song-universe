@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("server renders the one-screen player shell", async () => {
@@ -12,4 +13,11 @@ test("server renders the one-screen player shell", async () => {
   assert.match(html, /aria-label="最初の曲を再生"/);
   assert.doesNotMatch(html, /ENDLESS|ON-DEVICE|AI COMPOSED|NO HISTORY|LOCAL ONLY/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
+});
+
+test("service worker never pins an old application shell", async () => {
+  const source = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
+  assert.match(source, /request\.mode === "navigate"/);
+  assert.match(source, /fetch\(event\.request\).*catch\(\(\) => caches\.match\("\/"\)/);
+  assert.doesNotMatch(source.match(/const SHELL = \[(.*?)\]/)?.[1] ?? "", /"\/"/);
 });
