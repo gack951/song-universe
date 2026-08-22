@@ -107,6 +107,12 @@ function CompositionDetails({ song, elapsed, active }: { song: Song; elapsed: nu
   const { plan } = song;
   const totalBars = plan.chords.length;
   const currentBar = Math.min(totalBars, Math.floor(elapsed * plan.bpm / 240) + 1);
+  const chordsRef = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    const list = chordsRef.current;
+    const chord = list?.children[currentBar - 1] as HTMLElement | undefined;
+    if (list && chord) list.scrollTo({ left: chord.offsetLeft - (list.clientWidth - chord.clientWidth) / 2, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [currentBar, plan.seed]);
   const section = Math.max(0, plan.sections.findIndex(part => currentBar - 1 >= part.startBar && currentBar - 1 < part.startBar + part.bars));
   const theme = song.theme.slice(0, 24);
   const low = Math.min(...theme.map(note => note.pitch));
@@ -128,7 +134,7 @@ function CompositionDetails({ song, elapsed, active }: { song: Song; elapsed: nu
     </ol>
     <div className="chord-progression">
       <div><h3>コード進行</h3><strong>{currentBar}小節・{plan.chords[currentBar - 1]}</strong></div>
-      <ol aria-label="曲全体のコード進行">{plan.chords.map((chord, index) => <li key={`${index}-${chord}`} className={index === currentBar - 1 ? "current" : ""} aria-current={index === currentBar - 1 ? "step" : undefined}><span>{index + 1}</span>{chord}</li>)}</ol>
+      <ol ref={chordsRef} aria-label="曲全体のコード進行">{plan.chords.map((chord, index) => <li key={`${index}-${chord}`} className={index === currentBar - 1 ? "current" : ""} aria-current={index === currentBar - 1 ? "step" : undefined}><span>{index + 1}</span>{chord}</li>)}</ol>
     </div>
     <PianoRoll song={song} elapsed={elapsed} active={active} />
     <div className="detail-grid">

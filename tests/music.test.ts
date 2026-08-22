@@ -151,6 +151,24 @@ test("jazz and big band use swing as their basic eighth-note feel", () => {
   }
 });
 
+test("melodies occasionally enter offbeat and sustain across a strong beat", () => {
+  for (const genre of genres) {
+    let syncopatedBars = 0, bars = 0, sustained = 0;
+    for (let seed = 0; seed < 12; seed++) {
+      const plan = createTrackPlan(`${genre}-syncopation-${seed}`, genre);
+      const melody = buildSong(plan).notes.filter(note => plan.instruments.lead.includes(note.instrument));
+      for (let bar = 0; bar < plan.chords.length; bar++) {
+        const notes = melody.filter(note => note.beat >= bar * 4 && note.beat < (bar + 1) * 4);
+        if (notes.length && Math.min(...notes.map(note => note.beat)) > bar * 4 + .1) syncopatedBars++;
+        sustained += notes.filter(note => note.beat % 1 > .1 && note.beat + note.duration > Math.ceil(note.beat)).length;
+        bars++;
+      }
+    }
+    assert.ok(syncopatedBars > 0 && syncopatedBars / bars < .2, `${genre} syncopation is not occasional`);
+    assert.ok(sustained > 0, `${genre} has no tied syncopation`);
+  }
+});
+
 test("melodies form four-bar periods and rest only at phrase boundaries", () => {
   for (const genre of genres) {
     const plan = createTrackPlan(`phrasing-${genre}`, genre);
@@ -158,9 +176,10 @@ test("melodies form four-bar periods and rest only at phrase boundaries", () => 
     const melody = song.notes.filter(note => plan.genre === "bigBand" ? plan.instruments.lead.includes(note.instrument) : note.instrument === plan.instruments.lead[0]);
     for (let start = 0; start < plan.chords.length * 4; start += 16) {
       const phrase = melody.filter(note => note.beat >= start && note.beat < start + 16);
-      assert.ok([0, 4, 8, 12].every(bar => phrase.some(note => Math.abs(note.beat - start - bar) < 1e-9)), `${genre} enters late in a phrase`);
+      assert.ok(phrase.some(note => Math.abs(note.beat - start) < 1e-9), `${genre} enters late in a phrase`);
+      assert.ok([0, 4, 8, 12].every(bar => phrase.some(note => note.beat >= start + bar && note.beat < start + bar + 4)), `${genre} leaves a bar empty`);
       assert.ok(start + 16 - Math.max(...phrase.map(note => note.beat + note.duration)) >= .5, `${genre} lacks a phrase boundary`);
-      for (let index = 1; index < phrase.length; index++) assert.ok(phrase[index].beat - (phrase[index - 1].beat + phrase[index - 1].duration) <= .5 + 1e-9, `${genre} has an arbitrary long rest`);
+      for (let index = 1; index < phrase.length; index++) assert.ok(phrase[index].beat - (phrase[index - 1].beat + phrase[index - 1].duration) <= .8 + 1e-9, `${genre} has an arbitrary long rest`);
     }
   }
 });
