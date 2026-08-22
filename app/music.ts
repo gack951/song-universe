@@ -82,6 +82,8 @@ export const INSTRUMENT_NAMES: Record<number, string> = {
   68: "オーボエ", 70: "ファゴット", 71: "クラリネット", 73: "フルート", 80: "スクエアシンセ", 81: "ソーシンセ", 88: "ファンタジアパッド", 89: "ウォームパッド", 128: "ドラム",
 };
 
+export const eighthNoteMilliseconds = (bpm: number) => 30000 / bpm;
+
 function hash(seed: string) {
   let h = 2166136261;
   for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
@@ -225,31 +227,38 @@ function melodyPhrase(plan: TrackPlan, startBar: number, mode: SectionPlan["melo
   const [low, high] = RANGES[plan.instruments.lead[0]];
   const center = Math.max(low + 5, Math.min(high - 5, 66 + keyRoot % 6));
   const motif = pick(rng, config.melody.rhythms);
+  const motifPrime = motif.length > 4
+    ? motif.filter((_, index) => index !== motif.length - 2)
+    : motif.map((beat, index) => index === motif.length - 1 ? Math.max(motif[index - 1] + config.melody.grid, beat - config.melody.grid) : beat);
   const answer = pick(rng, config.melody.rhythms.filter(pattern => pattern !== motif));
-  const bars = mode === "sparse" ? (rng() > .5 ? [[0, 2], [], [.5, 2.5], [0, 2]] : [[0], [2.5], [], [0, 1.5]]) : [motif, motif, answer, [0, 1, 2]];
+  const bars = mode === "sparse"
+    ? (rng() > .5 ? [[0, 2], [0, 2], [0, 1.5, 2.5], [0, 2]] : [[0, 1.5], [0, 2], [0, 2.5], [0, 2]])
+    : [motif, motifPrime, answer, [0, 1, 2]];
   const contours = mode === "contrast" ? [5, 2, -2, 0] : mode === "improv" ? [0, 5, 8, 1] : [0, 3, 7, 0];
   const tension = config.melody.tension * (mode === "improv" ? 1.6 : mode === "sparse" ? .4 : 1);
   const sourcePitches = [...source].sort((a, b) => a.beat - b.beat).map(note => note.pitch);
+  const learnedShape = sourcePitches.slice(0, 4).map(pitch => Math.max(-5, Math.min(5, pitch - sourcePitches[0])));
+  const shapes = mode === "contrast" ? [[0, -2, 1, 4], [0, 3, 1, 5]] : mode === "improv" ? [[0, 2, -1, 4], [0, 3, -2, 5], [0, -2, 3, 1]] : mode === "sparse" ? [[0, 2], [0, -2]] : [[0, 2, 4, 2], [0, 3, 5, 2], [0, 2, 3, 1]];
+  const shape = new Set(learnedShape).size >= 3 ? learnedShape : pick(rng, shapes);
+  const sequence = rng() > .5 ? 2 : -2;
   const events: NoteEvent[] = [];
   let previous = center;
-  let sourceIndex = 0;
   bars.forEach((pattern, bar) => pattern.forEach((rawOffset, index) => {
     const offset = config.swing > .5 && rawOffset % 1 === .5 ? Math.floor(rawOffset) + config.swing : rawOffset;
-    const nextRaw = pattern[index + 1] ?? 3.45;
+    const nextRaw = pattern[index + 1] ?? (bar === 3 ? 3.5 : 4);
     const next = config.swing > .5 && nextRaw % 1 === .5 ? Math.floor(nextRaw) + config.swing : nextRaw;
     const beat = (startBar + bar) * 4 + offset;
     const chord = plan.chords[startBar + bar];
     const chordTones = [-1, 0, 1].flatMap(octave => chordPitches(chord, 4).map(pitch => pitch + octave * 12));
-    const strong = rawOffset % 1 === 0;
+    const strong = rawOffset % 2 === 0;
     const cadence = bar === 3 && index === pattern.length - 1;
-    const sourcePitch = sourcePitches[sourceIndex++ % Math.max(1, sourcePitches.length)];
-    const gesture = [0, 2, 4, 2, -1, 1][index % 6] * (bar === 2 ? -1 : 1);
-    const target = sourcePitch ?? center + contours[bar] + gesture + pick(rng, mode === "improv" ? [-5, -2, 0, 2, 5] : [-2, 0, 0, 2]);
+    const gesture = bar === 1 ? shape[index % shape.length] + sequence : bar === 2 ? -shape[shape.length - 1 - index % shape.length] : bar === 3 ? [4, 2, 0][index] : shape[index % shape.length];
+    const target = center + contours[bar] + gesture;
     let pitch = nearest(target, strong || cadence ? chordTones : scale);
     if (!strong && !cadence && rng() < tension) pitch = previous + pick(rng, plan.genre === "jazz" || plan.genre === "funk" ? [-2, -1, 1, 2] : [-1, 1]);
     if (Math.abs(pitch - previous) > (mode === "improv" ? 12 : 7)) pitch += pitch > previous ? -12 : 12;
     if (cadence) pitch = nearestChordPitch(center, chord);
-    events.push({ beat, duration: Math.max(config.melody.grid * .72, (next - offset) * .82), pitch, velocity: 70 + Math.round((1 - Math.abs(bar - 2) / 3) * 16) + (strong ? 5 : 0), instrument: plan.instruments.lead[0] });
+    events.push({ beat, duration: cadence ? 3.5 - offset : Math.max(config.melody.grid * .72, (next - offset) * .9), pitch, velocity: 70 + Math.round((1 - Math.abs(bar - 2) / 3) * 16) + (strong ? 5 : 0), instrument: plan.instruments.lead[0] });
     previous = pitch;
   }));
   return events;

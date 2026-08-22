@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AudioEngine, soundfontUrl } from "./audio";
-import { GENRES, INSTRUMENT_NAMES, aiParts, buildSong, createTrackPlan, initializeAI, newSeed, tooSimilar, type Genre, type PlaybackState, type Song } from "./music";
+import { GENRES, INSTRUMENT_NAMES, aiParts, buildSong, createTrackPlan, eighthNoteMilliseconds, initializeAI, newSeed, tooSimilar, type Genre, type PlaybackState, type Song } from "./music";
 
 const engine = new AudioEngine();
 const genreOrder = Object.keys(GENRES) as Genre[];
@@ -57,19 +57,17 @@ function Visualizer({ song, active }: { song?: Song; active: boolean }) {
 function PianoRoll({ song, elapsed, active }: { song: Song; elapsed: number; active: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const elapsedRef = useRef(elapsed);
-  const drawRef = useRef<() => void>(() => {});
-  useEffect(() => { elapsedRef.current = elapsed; drawRef.current(); }, [elapsed]);
+  useEffect(() => { elapsedRef.current = elapsed; }, [elapsed]);
   useEffect(() => {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
-    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const instruments = song.plan.instruments.lead;
     const lead = new Set(instruments);
     const melody = song.notes.filter(note => lead.has(note.instrument));
     const low = Math.floor(Math.min(...melody.map(note => note.pitch)) / 12) * 12;
     const high = Math.ceil((Math.max(...melody.map(note => note.pitch)) + 1) / 12) * 12;
-    let frame = 0;
+    let timer = 0;
     const resize = () => { const rect = canvas.getBoundingClientRect(); canvas.width = rect.width * devicePixelRatio; canvas.height = rect.height * devicePixelRatio; context.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0); };
     const draw = () => {
       const width = canvas.clientWidth, height = canvas.clientHeight;
@@ -85,14 +83,16 @@ function PianoRoll({ song, elapsed, active }: { song: Song; elapsed: number; act
         context.fillRect((note.beat - start) / span * width, (high - note.pitch) / Math.max(1, high - low) * (height - 7), Math.max(3, note.duration / span * width), 6);
       });
       context.fillStyle = "#f6f0e8"; context.fillRect(3 / span * width - 1, 0, 2, height);
-      if (active && !reduced && !document.hidden) frame = requestAnimationFrame(draw);
     };
-    drawRef.current = draw;
-    resize(); draw();
+    const schedule = () => {
+      clearInterval(timer);
+      if (active && !document.hidden) timer = window.setInterval(draw, eighthNoteMilliseconds(song.plan.bpm));
+    };
+    resize(); draw(); schedule();
     const observer = new ResizeObserver(() => { resize(); draw(); }); observer.observe(canvas);
-    const visibility = () => { cancelAnimationFrame(frame); if (!document.hidden && active && !reduced) frame = requestAnimationFrame(draw); };
+    const visibility = () => { draw(); schedule(); };
     document.addEventListener("visibilitychange", visibility);
-    return () => { drawRef.current = () => {}; cancelAnimationFrame(frame); observer.disconnect(); document.removeEventListener("visibilitychange", visibility); };
+    return () => { clearInterval(timer); observer.disconnect(); document.removeEventListener("visibilitychange", visibility); };
   }, [song, active]);
   const names = song.plan.instruments.lead.map(program => INSTRUMENT_NAMES[program]);
   return <div className="piano-roll"><div className="piano-roll-heading"><h3>リアルタイム・ピアノロール</h3><span>{names.map((name, index) => <i key={name} style={{ color: `hsl(${12 + index * 92} 86% ${index ? 67 : 62}%)` }}>{name}</i>)}</span></div><canvas ref={canvasRef} role="img" aria-label={`旋律楽器: ${names.join("、")}`} /></div>;

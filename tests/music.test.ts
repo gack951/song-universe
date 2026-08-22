@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GENRES, RANGES, buildSong, createTrackPlan, fingerprint, ruleTheme, tooSimilar, type Genre } from "../app/music.ts";
+import { GENRES, RANGES, buildSong, createTrackPlan, eighthNoteMilliseconds, fingerprint, ruleTheme, tooSimilar, type Genre } from "../app/music.ts";
 
 const genres = Object.keys(GENRES) as Genre[];
+
+test("piano roll clock follows an eighth note at the song BPM", () => {
+  assert.equal(eighthNoteMilliseconds(60), 500);
+  assert.equal(eighthNoteMilliseconds(120), 250);
+});
 
 test("plans are deterministic and stay inside every genre contract", () => {
   for (const genre of genres) {
@@ -103,6 +108,20 @@ test("jazz melody onsets stay on the beat or swung eighth grid", () => {
     const position = note.beat - Math.floor(note.beat);
     assert.ok(Math.abs(position) < 1e-9 || Math.abs(position - GENRES.jazz.swing) < 1e-9, `off-grid jazz onset ${note.beat}`);
   });
+});
+
+test("melodies form four-bar periods and rest only at phrase boundaries", () => {
+  for (const genre of genres) {
+    const plan = createTrackPlan(`phrasing-${genre}`, genre);
+    const song = buildSong(plan);
+    const melody = song.notes.filter(note => note.instrument === plan.instruments.lead[0]);
+    for (let start = 0; start < plan.chords.length * 4; start += 16) {
+      const phrase = melody.filter(note => note.beat >= start && note.beat < start + 16);
+      assert.ok([0, 4, 8, 12].every(bar => phrase.some(note => Math.abs(note.beat - start - bar) < 1e-9)), `${genre} enters late in a phrase`);
+      assert.ok(Math.abs(Math.max(...phrase.map(note => note.beat + note.duration)) - (start + 15.5)) < 1e-9, `${genre} lacks an eighth-note phrase boundary`);
+      for (let index = 1; index < phrase.length; index++) assert.ok(phrase[index].beat - (phrase[index - 1].beat + phrase[index - 1].duration) <= .5 + 1e-9, `${genre} has an arbitrary long rest`);
+    }
+  }
 });
 
 test("the in-memory 32-song fingerprint window rejects near repeats", () => {
