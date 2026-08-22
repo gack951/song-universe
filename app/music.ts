@@ -219,6 +219,10 @@ function nearest(pitch: number, candidates: number[]) {
   return candidates.reduce((best, value) => Math.abs(value - pitch) < Math.abs(best - pitch) ? value : best);
 }
 
+function swingOffset(config: GenreConfig, beat: number) {
+  return config.swing > .5 && beat % 1 === .5 ? Math.floor(beat) + config.swing : beat;
+}
+
 function melodyPhrase(plan: TrackPlan, startBar: number, mode: SectionPlan["melody"], salt: string, source: NoteEvent[] = []) {
   const config = GENRES[plan.genre];
   const rng = random(`${plan.seed}:${mode}:${startBar}:${salt}`);
@@ -244,9 +248,9 @@ function melodyPhrase(plan: TrackPlan, startBar: number, mode: SectionPlan["melo
   const events: NoteEvent[] = [];
   let previous = center;
   bars.forEach((pattern, bar) => pattern.forEach((rawOffset, index) => {
-    const offset = config.swing > .5 && rawOffset % 1 === .5 ? Math.floor(rawOffset) + config.swing : rawOffset;
+    const offset = swingOffset(config, rawOffset);
     const nextRaw = pattern[index + 1] ?? (bar === 3 ? 3.5 : 4);
-    const next = config.swing > .5 && nextRaw % 1 === .5 ? Math.floor(nextRaw) + config.swing : nextRaw;
+    const next = swingOffset(config, nextRaw);
     const beat = (startBar + bar) * 4 + offset;
     const chord = plan.chords[startBar + bar];
     const chordTones = [-1, 0, 1].flatMap(octave => chordPitches(chord, 4).map(pitch => pitch + octave * 12));
@@ -306,8 +310,7 @@ function addRhythm(notes: NoteEvent[], plan: TrackPlan, bar: number, section: Se
   const hats = section.energy > .72 ? 8 : 4;
   for (let i = 0; i < hats; i++) {
     const straight = i * 4 / hats;
-    const swung = straight % 1 === .5 ? Math.floor(straight) + config.swing : straight;
-    notes.push({ beat: start + swung, duration: .08, pitch: config.drums === "swing" ? 51 : 42, velocity: 38 + section.energy * 26 + (i % 2) * 7, instrument: 128 });
+    notes.push({ beat: start + swingOffset(config, straight), duration: .08, pitch: config.drums === "swing" ? 51 : 42, velocity: 38 + section.energy * 26 + (i % 2) * 7, instrument: 128 });
   }
   if (bar === section.startBar + section.bars - 1 && section.energy > .6) for (let i = 0; i < 4; i++) notes.push({ beat: start + 3 + i * .25, duration: .08, pitch: 45 + i * 2, velocity: 66 + i * 7, instrument: 128 });
 }
@@ -330,7 +333,7 @@ function addHarmony(notes: NoteEvent[], plan: TrackPlan, bar: number, section: S
   const pitches = chordPitches(plan.chords[bar], config.voicing === "power" ? 3 : 4);
   const starts = section.energy < .45 ? [0] : config.voicing === "stab" ? [0, 1.5, 2.5] : config.voicing === "power" ? [0, 2] : [0];
   const harmony = section.energy > .62 ? plan.instruments.harmony : plan.instruments.harmony.slice(0, 1);
-  for (const beat of starts) for (const [index, pitch] of pitches.slice(0, config.voicing === "power" ? 2 : 4).entries()) {
+  for (const beat of starts.map(value => swingOffset(config, value))) for (const [index, pitch] of pitches.slice(0, config.voicing === "power" ? 2 : 4).entries()) {
     const targets = harmony.length === 1 ? harmony : [harmony[index % harmony.length]];
     for (const instrument of targets) notes.push({ beat: bar * 4 + beat, duration: starts.length === 1 ? 3.7 : .42, pitch, velocity: 42 + section.energy * (config.voicing === "shell" ? 22 : 32), instrument });
   }
@@ -390,7 +393,7 @@ export function buildSong(plan: TrackPlan, aiTheme?: NoteEvent[], aiDrums?: Note
     }
     if (aiDrums?.length && config.drums !== "none" && section.energy > .7) {
       const fillBar = section.startBar + section.bars - 1;
-      for (const note of aiDrums) notes.push({ ...note, beat: fillBar * 4 + (note.beat % 4), velocity: 58 + section.energy * 32, instrument: 128 });
+      for (const note of aiDrums) notes.push({ ...note, beat: fillBar * 4 + swingOffset(config, note.beat % 4), velocity: 58 + section.energy * 32, instrument: 128 });
     }
   }
   const tonic = 36 + ROOTS.indexOf(plan.key.replace("♭", "b").replace("♯", "#"));

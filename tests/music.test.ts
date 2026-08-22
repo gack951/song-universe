@@ -101,13 +101,17 @@ test("ensemble lead voices share phrasing without harmonic collisions", () => {
   }
 });
 
-test("jazz melody onsets stay on the beat or swung eighth grid", () => {
-  const plan = createTrackPlan("jazz-metric-phrasing", "jazz");
-  const song = buildSong(plan, Array.from({ length: 32 }, (_, index) => ({ beat: index * .25, duration: .25, pitch: 54 + index % 19, velocity: 90, instrument: plan.instruments.lead[0] })));
-  song.notes.filter(note => plan.instruments.lead.includes(note.instrument)).forEach(note => {
-    const position = note.beat - Math.floor(note.beat);
-    assert.ok(Math.abs(position) < 1e-9 || Math.abs(position - GENRES.jazz.swing) < 1e-9, `off-grid jazz onset ${note.beat}`);
-  });
+test("jazz and big band use swing as their basic eighth-note feel", () => {
+  for (const genre of ["jazz", "bigBand"] as const) {
+    const plan = createTrackPlan(`${genre}-metric-phrasing`, genre);
+    plan.sections.forEach(section => { section.energy = 1; });
+    const song = buildSong(plan, Array.from({ length: 32 }, (_, index) => ({ beat: index * .25, duration: .25, pitch: 54 + index % 19, velocity: 90, instrument: plan.instruments.lead[0] })), [{ beat: .5, duration: .1, pitch: 49, velocity: 90, instrument: 128 }]);
+    song.notes.filter(note => plan.instruments.lead.includes(note.instrument)).forEach(note => {
+      const position = note.beat - Math.floor(note.beat);
+      assert.ok(Math.abs(position) < 1e-9 || Math.abs(position - GENRES[genre].swing) < 1e-9, `off-grid ${genre} onset ${note.beat}`);
+    });
+    assert.ok(song.notes.some(note => note.instrument === 128 && note.pitch === 49 && Math.abs(note.beat % 1 - GENRES[genre].swing) < 1e-9), `${genre} AI drum stayed straight`);
+  }
 });
 
 test("melodies form four-bar periods and rest only at phrase boundaries", () => {
