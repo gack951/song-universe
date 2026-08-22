@@ -10,12 +10,21 @@ export type TrackPlan = {
   durationSeconds: number;
   form: string[];
   chords: string[];
+  sections: SectionPlan[];
   instruments: {
     lead: number[];
     harmony: number[];
     bass: number;
     color: number[];
   };
+};
+
+export type SectionPlan = {
+  name: string;
+  startBar: number;
+  bars: number;
+  energy: number;
+  melody: "theme" | "contrast" | "improv" | "sparse";
 };
 
 export type NoteEvent = {
@@ -27,15 +36,18 @@ export type NoteEvent = {
 };
 
 export type PlaybackState = "loading" | "playing" | "paused" | "buffering" | "error";
-export type Song = { plan: TrackPlan; notes: NoteEvent[]; fingerprint: string; ai: boolean };
+export type Song = { plan: TrackPlan; notes: NoteEvent[]; theme: NoteEvent[]; fingerprint: string; ai: boolean };
 
 type GenreConfig = {
   label: string;
   bpm: [number, number];
   swing: number;
   moods: string[];
+  moodEnergy: number[];
   instruments: { lead: number[]; harmony: number[]; bass: number[]; color: number[] };
   layers: { lead: number; harmony: number; color: number };
+  energy: number[];
+  sectionWeights: number[];
   progressions: number[][];
   bass: "walk" | "sync" | "eighth" | "pulse";
   drums: "swing" | "funk" | "rock" | "pop" | "none";
@@ -46,12 +58,12 @@ type GenreConfig = {
 };
 
 export const GENRES: Record<Genre, GenreConfig> = {
-  jazz: { label: "ジャズ", bpm: [88, 148], swing: .62, moods: ["夜更け", "軽やか", "スモーキー"], instruments: { lead: [65, 66, 56, 11], harmony: [0, 4, 16, 26], bass: [32, 33, 34], color: [11, 64, 56, 26] }, layers: { lead: 1, harmony: 1, color: 1 }, progressions: [[2, 5, 1, 6], [1, 6, 2, 5]], bass: "walk", drums: "swing", voicing: "shell", cadence: [2, 5, 1, 1], form: ["head", "solo", "head", "coda"], pack: "jazz-bigband" },
-  bigBand: { label: "ビッグバンド", bpm: [104, 176], swing: .64, moods: ["華麗", "祝祭", "大胆"], instruments: { lead: [56, 65, 66], harmony: [57, 60, 67], bass: [32, 33], color: [0, 11, 26] }, layers: { lead: 2, harmony: 2, color: 1 }, progressions: [[1, 6, 2, 5], [3, 6, 2, 5]], bass: "walk", drums: "swing", voicing: "stab", cadence: [2, 5, 1, 1], form: ["intro", "head", "solos", "shout chorus", "coda"], pack: "jazz-bigband" },
-  funk: { label: "ファンク", bpm: [92, 122], swing: .54, moods: ["粘る", "鮮烈", "地下室"], instruments: { lead: [4, 5, 80, 81], harmony: [27, 16, 4, 5], bass: [36, 37, 33, 34], color: [16, 11, 80, 81] }, layers: { lead: 1, harmony: 1, color: 1 }, progressions: [[1, 4, 1, 5], [1, 7, 4, 1]], bass: "sync", drums: "funk", voicing: "stab", cadence: [4, 5, 1, 1], form: ["A", "B", "break", "A", "outro"], pack: "funk-rock-pop" },
-  rock: { label: "ロック", bpm: [104, 168], swing: .5, moods: ["疾走", "荒野", "昂揚"], instruments: { lead: [29, 30, 27, 28], harmony: [27, 29, 16, 0], bass: [33, 34, 32], color: [16, 80, 48] }, layers: { lead: 1, harmony: 1, color: 1 }, progressions: [[1, 5, 6, 4], [1, 4, 5, 1]], bass: "eighth", drums: "rock", voicing: "power", cadence: [4, 5, 1, 1], form: ["intro", "verse", "chorus", "verse", "bridge", "chorus", "outro"], pack: "funk-rock-pop" },
-  pop: { label: "ポップ", bpm: [92, 132], swing: .5, moods: ["透明", "晴れ間", "切なさ"], instruments: { lead: [80, 81, 4, 73], harmony: [4, 0, 48, 88], bass: [33, 38, 39], color: [88, 89, 48, 52] }, layers: { lead: 1, harmony: 1, color: 1 }, progressions: [[1, 5, 6, 4], [6, 4, 1, 5]], bass: "pulse", drums: "pop", voicing: "open", cadence: [4, 5, 1, 1], form: ["intro", "verse", "prechorus", "chorus", "bridge", "final chorus"], pack: "funk-rock-pop" },
-  classical: { label: "クラシック", bpm: [66, 126], swing: .5, moods: ["端正", "荘厳", "田園"], instruments: { lead: [40, 68, 71, 73], harmony: [41, 42, 48, 0], bass: [43, 42, 70], color: [46, 60, 68, 70, 6] }, layers: { lead: 2, harmony: 2, color: 1 }, progressions: [[1, 4, 5, 1], [1, 6, 2, 5]], bass: "pulse", drums: "none", voicing: "open", cadence: [2, 5, 1, 1], form: ["exposition", "development", "recapitulation", "coda"], pack: "classical" },
+  jazz: { label: "ジャズ", bpm: [88, 148], swing: .62, moods: ["夜更け", "軽やか", "スモーキー"], moodEnergy: [.86, 1.06, .94], instruments: { lead: [65, 66, 56, 11], harmony: [0, 4, 16, 26], bass: [32, 33, 34], color: [11, 64, 56, 26] }, layers: { lead: 1, harmony: 1, color: 1 }, energy: [.62, .86, .7, .42], sectionWeights: [1, 2, 1, 1], progressions: [[2, 5, 1, 6], [1, 6, 2, 5]], bass: "walk", drums: "swing", voicing: "shell", cadence: [2, 5, 1, 1], form: ["head", "solo", "head", "coda"], pack: "jazz-bigband" },
+  bigBand: { label: "ビッグバンド", bpm: [104, 176], swing: .64, moods: ["華麗", "祝祭", "大胆"], moodEnergy: [1, 1.05, 1.1], instruments: { lead: [56, 65, 66], harmony: [57, 60, 67], bass: [32, 33], color: [0, 11, 26] }, layers: { lead: 2, harmony: 2, color: 1 }, energy: [.46, .68, .78, 1, .48], sectionWeights: [1, 1, 2, 1, 1], progressions: [[1, 6, 2, 5], [3, 6, 2, 5]], bass: "walk", drums: "swing", voicing: "stab", cadence: [2, 5, 1, 1], form: ["intro", "head", "solos", "shout chorus", "coda"], pack: "jazz-bigband" },
+  funk: { label: "ファンク", bpm: [92, 122], swing: .54, moods: ["粘る", "鮮烈", "地下室"], moodEnergy: [.96, 1.08, .86], instruments: { lead: [4, 5, 80, 81], harmony: [27, 16, 4, 5], bass: [36, 37, 33, 34], color: [16, 11, 80, 81] }, layers: { lead: 1, harmony: 1, color: 1 }, energy: [.72, .88, .3, .84, .5], sectionWeights: [2, 1, 1, 2, 1], progressions: [[1, 4, 1, 5], [1, 7, 4, 1]], bass: "sync", drums: "funk", voicing: "stab", cadence: [4, 5, 1, 1], form: ["A", "B", "break", "A", "outro"], pack: "funk-rock-pop" },
+  rock: { label: "ロック", bpm: [104, 168], swing: .5, moods: ["疾走", "荒野", "昂揚"], moodEnergy: [1.08, .9, 1.05], instruments: { lead: [29, 30, 27, 28], harmony: [27, 29, 16, 0], bass: [33, 34, 32], color: [16, 80, 48] }, layers: { lead: 1, harmony: 1, color: 1 }, energy: [.46, .62, .9, .66, .74, 1, .48], sectionWeights: [1, 2, 1, 2, 1, 1, 1], progressions: [[1, 5, 6, 4], [1, 4, 5, 1]], bass: "eighth", drums: "rock", voicing: "power", cadence: [4, 5, 1, 1], form: ["intro", "verse", "chorus", "verse", "bridge", "chorus", "outro"], pack: "funk-rock-pop" },
+  pop: { label: "ポップ", bpm: [92, 132], swing: .5, moods: ["透明", "晴れ間", "切なさ"], moodEnergy: [.88, 1.05, .9], instruments: { lead: [80, 81, 4, 73], harmony: [4, 0, 48, 88], bass: [33, 38, 39], color: [88, 89, 48, 52] }, layers: { lead: 1, harmony: 1, color: 1 }, energy: [.42, .56, .72, .94, .68, 1], sectionWeights: [1, 2, 1, 2, 1, 2], progressions: [[1, 5, 6, 4], [6, 4, 1, 5]], bass: "pulse", drums: "pop", voicing: "open", cadence: [4, 5, 1, 1], form: ["intro", "verse", "prechorus", "chorus", "bridge", "final chorus"], pack: "funk-rock-pop" },
+  classical: { label: "クラシック", bpm: [66, 126], swing: .5, moods: ["端正", "荘厳", "田園"], moodEnergy: [.92, 1.06, .84], instruments: { lead: [40, 68, 71, 73], harmony: [41, 42, 48, 0], bass: [43, 42, 70], color: [46, 60, 68, 70, 6] }, layers: { lead: 2, harmony: 2, color: 1 }, energy: [.62, .9, .76, .44], sectionWeights: [2, 2, 2, 1], progressions: [[1, 4, 5, 1], [1, 6, 2, 5]], bass: "pulse", drums: "none", voicing: "open", cadence: [2, 5, 1, 1], form: ["exposition", "development", "recapitulation", "coda"], pack: "classical" },
 };
 
 const KEYS = ["C", "D♭", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
@@ -116,27 +128,65 @@ function chordName(root: number, degree: number) {
   return ROOTS[(root + semitones[degree - 1]) % 12] + qualities[degree - 1];
 }
 
+function sectionMelody(name: string): SectionPlan["melody"] {
+  if (["head", "A", "chorus", "final chorus", "exposition", "recapitulation"].includes(name)) return "theme";
+  if (["B", "verse", "prechorus", "bridge"].includes(name)) return "contrast";
+  if (["solo", "solos", "shout chorus", "development"].includes(name)) return "improv";
+  return "sparse";
+}
+
+function makeSections(rng: () => number, config: GenreConfig, bars: number, mood: number): SectionPlan[] {
+  const units = Array(config.form.length).fill(1) as number[];
+  for (let remaining = bars / 4 - units.length; remaining > 0; remaining--) {
+    const total = config.sectionWeights.reduce((sum, weight) => sum + weight, 0);
+    let roll = rng() * total;
+    const target = Math.max(0, config.sectionWeights.findIndex(weight => (roll -= weight) <= 0));
+    units[target]++;
+  }
+  let startBar = 0;
+  return config.form.map((name, index) => {
+    const section = {
+      name,
+      startBar,
+      bars: units[index] * 4,
+      energy: Math.max(.25, Math.min(1, config.energy[index] * config.moodEnergy[mood] + (rng() - .5) * .08)),
+      melody: sectionMelody(name),
+    } satisfies SectionPlan;
+    startBar += section.bars;
+    return section;
+  });
+}
+
 export function createTrackPlan(seed: string, genre: Genre): TrackPlan {
   const rng = random(seed);
   const config = GENRES[genre];
   const bpm = Math.round(config.bpm[0] + rng() * (config.bpm[1] - config.bpm[0]));
   const target = 90 + Math.floor(rng() * 271);
-  const bars = Math.min(Math.floor(360 * bpm / 240), Math.max(Math.ceil(90 * bpm / 240), Math.round(target * bpm / 240)));
+  const minBars = Math.ceil(90 * bpm / 960) * 4;
+  const maxBars = Math.floor(360 * bpm / 960) * 4;
+  const bars = Math.min(maxBars, Math.max(minBars, Math.round(target * bpm / 960) * 4, config.form.length * 4));
   const durationSeconds = Math.round(bars * 240 / bpm);
   const root = Math.floor(rng() * 12);
-  const degrees = pick(rng, config.progressions);
-  const chords = Array.from({ length: bars }, (_, bar) => chordName(root, degrees[bar % degrees.length]));
+  const mood = Math.floor(rng() * config.moods.length);
+  const sections = makeSections(rng, config, bars, mood);
+  const chords = sections.flatMap((section, index) => {
+    const degrees = config.progressions[(index + Math.floor(rng() * config.progressions.length)) % config.progressions.length];
+    const turn = index % degrees.length;
+    return Array.from({ length: section.bars }, (_, bar) => chordName(root, degrees[(bar + turn) % degrees.length]));
+  });
+  config.cadence.forEach((degree, index) => { chords[chords.length - config.cadence.length + index] = chordName(root, degree); });
   const instruments = chooseInstruments(rng, config);
   return {
     seed,
     title: `${pick(rng, ADJECTIVES)} ${pick(rng, NOUNS)}`,
     genre,
-    mood: pick(rng, config.moods),
+    mood: config.moods[mood],
     key: KEYS[root],
     bpm,
     durationSeconds,
     form: config.form,
     chords,
+    sections,
     instruments,
   };
 }
@@ -161,57 +211,98 @@ export function ruleTheme(plan: TrackPlan, salt = "rule"): NoteEvent[] {
   let beat = 0;
   while (beat < 16) {
     const duration = pick(rng, [.5, .5, 1, 1, 1.5]);
-    notes.push({ beat, duration: Math.min(duration, 16 - beat), pitch: tonic + pick(rng, scale) + (rng() > .82 ? 12 : 0), velocity: 76 + Math.floor(rng() * 26), instrument: plan.instruments.lead[0] });
+    const chord = chordPitches(plan.chords[Math.floor(beat / 4)], 4);
+    const pitch = beat % 1 === 0 ? pick(rng, chord) : tonic + pick(rng, scale) + (rng() > .82 ? 12 : 0);
+    notes.push({ beat, duration: Math.min(duration, 16 - beat), pitch, velocity: 76 + Math.floor(rng() * 26), instrument: plan.instruments.lead[0] });
     beat += duration;
   }
   return notes;
 }
 
-function addTheme(notes: NoteEvent[], theme: NoteEvent[], start: number, section: number, instrument: number) {
-  const shift = section % 3 === 1 ? 2 : section % 3 === 2 ? -2 : 0;
+function nearestChordPitch(pitch: number, chord: string) {
+  const candidates = [-1, 0, 1].flatMap(octave => chordPitches(chord, 4).map(value => value + octave * 12));
+  return candidates.reduce((best, value) => Math.abs(value - pitch) < Math.abs(best - pitch) ? value : best);
+}
+
+function addTheme(notes: NoteEvent[], theme: NoteEvent[], plan: TrackPlan, startBar: number, variation: number, instrument: number) {
+  const shift = variation % 3 === 1 ? 2 : variation % 3 === 2 ? -2 : 0;
   for (const note of theme) {
-    const inverted = section % 4 === 2 ? theme[0].pitch - (note.pitch - theme[0].pitch) : note.pitch;
-    notes.push({ ...note, beat: start + note.beat, pitch: inverted + shift, velocity: Math.min(116, note.velocity + (section % 2) * 5), instrument });
+    const inverted = variation % 4 === 2 ? theme[0].pitch - (note.pitch - theme[0].pitch) : note.pitch;
+    const beat = startBar * 4 + note.beat;
+    const pitch = note.beat % 1 === 0 ? nearestChordPitch(inverted + shift, plan.chords[Math.floor(beat / 4)]) : inverted + shift;
+    notes.push({ ...note, beat, pitch, velocity: Math.min(116, note.velocity + (variation % 2) * 5), instrument });
   }
 }
 
-function addRhythm(notes: NoteEvent[], plan: TrackPlan, bar: number) {
+function addIndependentMelody(notes: NoteEvent[], plan: TrackPlan, startBar: number, mode: "contrast" | "improv" | "sparse", instrument: number, layer: number) {
+  const rng = random(`${plan.seed}:${mode}:${startBar}:${layer}`);
+  const scale = [0, 2, 4, 5, 7, 9, 11];
+  const tonic = 60 + rootOf(plan.chords[startBar]) + layer * 3;
+  const end = (startBar + 4) * 4;
+  let beat = startBar * 4 + (mode === "sparse" ? 1 : 0);
+  let previous = tonic + (mode === "contrast" ? 7 : 0);
+  while (beat < end) {
+    if (mode === "sparse" && rng() < .48) { beat += 1; continue; }
+    const duration = pick(rng, mode === "improv" ? [.25, .5, .5, .75, 1] : mode === "contrast" ? [.5, 1, 1, 1.5, 2] : [1, 1.5, 2]);
+    const chord = plan.chords[Math.min(plan.chords.length - 1, Math.floor(beat / 4))];
+    const strong = Math.abs(beat - Math.round(beat)) < .01;
+    let pitch = strong ? nearestChordPitch(previous + (rng() > .5 ? 3 : -3), chord) : tonic + pick(rng, scale) + (rng() > .7 ? 12 : 0);
+    if (mode === "contrast") pitch = nearestChordPitch(tonic + 7 + Math.round(Math.sin((beat - startBar * 4) / 2) * 5), chord);
+    if (Math.abs(pitch - previous) > 12) pitch += pitch > previous ? -12 : 12;
+    notes.push({ beat, duration: Math.min(duration * .88, end - beat), pitch, velocity: mode === "improv" ? 74 + Math.floor(rng() * 34) : 66 + Math.floor(rng() * 24), instrument });
+    previous = pitch;
+    beat += duration + (mode === "improv" && rng() < .25 ? .25 : 0);
+  }
+}
+
+function addRhythm(notes: NoteEvent[], plan: TrackPlan, bar: number, section: SectionPlan) {
   const config = GENRES[plan.genre];
   const start = bar * 4;
   if (config.drums === "none") {
-    for (let i = 0; i < 8; i++) notes.push({ beat: start + i * .5, duration: .42, pitch: chordPitches(plan.chords[bar], 3)[i % 3], velocity: 48 + (i % 2) * 8, instrument: plan.instruments.harmony[0] });
+    const steps = section.energy > .7 ? 8 : 4;
+    for (let i = 0; i < steps; i++) notes.push({ beat: start + i * 4 / steps, duration: 3.4 / steps, pitch: chordPitches(plan.chords[bar], 3)[i % 3], velocity: 38 + section.energy * 24 + (i % 2) * 6, instrument: plan.instruments.harmony[0] });
     return;
   }
   const kick = config.drums === "funk" ? [0, 1.5, 2.5] : [0, 2];
-  const snare = config.drums === "swing" ? [1, 3] : [1, 3];
-  for (const beat of kick) notes.push({ beat: start + beat, duration: .12, pitch: 36, velocity: 94, instrument: 128 });
-  for (const beat of snare) notes.push({ beat: start + beat, duration: .12, pitch: 38, velocity: 88, instrument: 128 });
-  for (let i = 0; i < 8; i++) notes.push({ beat: start + i * .5, duration: .08, pitch: config.drums === "swing" ? 51 : 42, velocity: 54 + (i % 2) * 10, instrument: 128 });
+  for (const beat of kick.filter((_, index) => index === 0 || section.energy > .55)) notes.push({ beat: start + beat, duration: .12, pitch: 36, velocity: 72 + section.energy * 26, instrument: 128 });
+  for (const beat of [1, 3]) notes.push({ beat: start + beat, duration: .12, pitch: 38, velocity: 66 + section.energy * 24, instrument: 128 });
+  const hats = section.energy > .72 ? 8 : 4;
+  for (let i = 0; i < hats; i++) {
+    const straight = i * 4 / hats;
+    const swung = straight % 1 === .5 ? Math.floor(straight) + config.swing : straight;
+    notes.push({ beat: start + swung, duration: .08, pitch: config.drums === "swing" ? 51 : 42, velocity: 38 + section.energy * 26 + (i % 2) * 7, instrument: 128 });
+  }
+  if (bar === section.startBar + section.bars - 1 && section.energy > .6) for (let i = 0; i < 4; i++) notes.push({ beat: start + 3 + i * .25, duration: .08, pitch: 45 + i * 2, velocity: 66 + i * 7, instrument: 128 });
 }
 
-function addBass(notes: NoteEvent[], plan: TrackPlan, bar: number) {
+function addBass(notes: NoteEvent[], plan: TrackPlan, bar: number, section: SectionPlan) {
   const config = GENRES[plan.genre];
   const start = bar * 4;
   const root = 36 + rootOf(plan.chords[bar]);
   const pattern = config.bass === "walk" ? [0, 4, 7, 9] : config.bass === "sync" ? [0, 0, 7, 0, 10] : config.bass === "eighth" ? [0, 0, 7, 7, 0, 0, 7, 10] : [0, 7, 0, 7];
-  const step = 4 / pattern.length;
-  pattern.forEach((interval, i) => notes.push({ beat: start + i * step, duration: step * .86, pitch: root + interval, velocity: 72 + (i === 0 ? 10 : 0), instrument: plan.instruments.bass }));
+  const active = section.energy < .5 ? pattern.filter((_, index) => index % 2 === 0) : pattern;
+  const step = 4 / active.length;
+  active.forEach((interval, i) => {
+    const approach = i === active.length - 1 && section.energy > .65 ? 35 + rootOf(plan.chords[Math.min(bar + 1, plan.chords.length - 1)]) : root + interval;
+    notes.push({ beat: start + i * step, duration: step * .86, pitch: approach, velocity: 58 + section.energy * 24 + (i === 0 ? 8 : 0), instrument: plan.instruments.bass });
+  });
 }
 
-function addHarmony(notes: NoteEvent[], plan: TrackPlan, bar: number) {
+function addHarmony(notes: NoteEvent[], plan: TrackPlan, bar: number, section: SectionPlan) {
   const config = GENRES[plan.genre];
   const pitches = chordPitches(plan.chords[bar], config.voicing === "power" ? 3 : 4);
-  const starts = config.voicing === "stab" ? [0, 1.5, 2.5] : config.voicing === "power" ? [0, 2] : [0];
-  const harmony = plan.instruments.harmony;
+  const starts = section.energy < .45 ? [0] : config.voicing === "stab" ? [0, 1.5, 2.5] : config.voicing === "power" ? [0, 2] : [0];
+  const harmony = section.energy > .62 ? plan.instruments.harmony : plan.instruments.harmony.slice(0, 1);
   for (const beat of starts) for (const [index, pitch] of pitches.slice(0, config.voicing === "power" ? 2 : 4).entries()) {
     const targets = harmony.length === 1 ? harmony : [harmony[index % harmony.length]];
-    for (const instrument of targets) notes.push({ beat: bar * 4 + beat, duration: starts.length === 1 ? 3.7 : .42, pitch, velocity: config.voicing === "shell" ? 58 : 68, instrument });
+    for (const instrument of targets) notes.push({ beat: bar * 4 + beat, duration: starts.length === 1 ? 3.7 : .42, pitch, velocity: 42 + section.energy * (config.voicing === "shell" ? 22 : 32), instrument });
   }
 }
 
-function addColor(notes: NoteEvent[], plan: TrackPlan, bar: number) {
+function addColor(notes: NoteEvent[], plan: TrackPlan, bar: number, section: SectionPlan) {
+  if (section.energy < .38 || bar % (section.energy > .75 ? 1 : 2)) return;
   const pitches = chordPitches(plan.chords[bar], 4);
-  plan.instruments.color.forEach((instrument, index) => notes.push({ beat: bar * 4, duration: 3.6, pitch: pitches[(index + 1) % pitches.length], velocity: 45, instrument }));
+  plan.instruments.color.forEach((instrument, index) => notes.push({ beat: bar * 4, duration: section.energy > .7 ? 3.6 : 1.8, pitch: pitches[(index + 1) % pitches.length], velocity: 30 + section.energy * 24, instrument }));
 }
 
 export function normalizeNotes(notes: NoteEvent[], totalBeats: number): NoteEvent[] {
@@ -246,21 +337,30 @@ export function buildSong(plan: TrackPlan, aiTheme?: NoteEvent[], aiDrums?: Note
   const totalBeats = bars * 4;
   const theme = aiTheme?.length ? aiTheme : ruleTheme(plan);
   const notes: NoteEvent[] = [];
-  for (let bar = 0; bar < bars; bar++) {
-    addHarmony(notes, plan, bar);
-    addBass(notes, plan, bar);
-    addRhythm(notes, plan, bar);
-    addColor(notes, plan, bar);
-    if (bar % 4 === 0 && bar < bars - 2) for (const [layer, instrument] of plan.instruments.lead.entries()) addTheme(notes, theme, bar * 4, Math.floor(bar / 4) + layer, instrument);
-  }
-  if (aiDrums?.length && config.drums !== "none") {
-    for (let bar = 0; bar < bars - 2; bar++) for (const note of aiDrums) notes.push({ ...note, beat: bar * 4 + (note.beat % 4), instrument: 128 });
+  for (const [sectionIndex, section] of plan.sections.entries()) {
+    for (let bar = section.startBar; bar < section.startBar + section.bars; bar++) {
+      addHarmony(notes, plan, bar, section);
+      addBass(notes, plan, bar, section);
+      addRhythm(notes, plan, bar, section);
+      addColor(notes, plan, bar, section);
+    }
+    for (let phrase = 0; phrase < section.bars / 4; phrase++) {
+      const startBar = section.startBar + phrase * 4;
+      for (const [layer, instrument] of plan.instruments.lead.entries()) {
+        if (section.melody === "theme" && phrase === 0) addTheme(notes, theme, plan, startBar, sectionIndex + layer, instrument);
+        else addIndependentMelody(notes, plan, startBar, section.melody === "theme" ? (phrase % 2 ? "contrast" : "improv") : section.melody, instrument, layer);
+      }
+    }
+    if (aiDrums?.length && config.drums !== "none" && section.energy > .7) {
+      const fillBar = section.startBar + section.bars - 1;
+      for (const note of aiDrums) notes.push({ ...note, beat: fillBar * 4 + (note.beat % 4), velocity: 58 + section.energy * 32, instrument: 128 });
+    }
   }
   const tonic = 36 + ROOTS.indexOf(plan.key.replace("♭", "b").replace("♯", "#"));
   notes.push({ beat: totalBeats - 8, duration: 3.5, pitch: tonic + 7, velocity: 82, instrument: plan.instruments.bass });
   notes.push({ beat: totalBeats - 4, duration: 3.8, pitch: tonic, velocity: 88, instrument: plan.instruments.bass });
   for (const [index, pitch] of [tonic + 24, tonic + 28, tonic + 31].entries()) notes.push({ beat: totalBeats - 4, duration: 3.8, pitch, velocity: 72, instrument: plan.instruments.harmony[index % plan.instruments.harmony.length] });
-  return { plan, notes: normalizeNotes(notes, totalBeats), fingerprint: fingerprint(theme), ai: Boolean(aiTheme?.length) };
+  return { plan, notes: normalizeNotes(notes, totalBeats), theme, fingerprint: fingerprint(theme), ai: Boolean(aiTheme?.length) };
 }
 
 type ModelSequence = { notes?: Array<{ pitch?: number | null; quantizedStartStep?: number | null; quantizedEndStep?: number | null }> | null };

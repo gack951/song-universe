@@ -63,8 +63,8 @@ function CompositionDetails({ song, elapsed }: { song: Song; elapsed: number }) 
   const { plan } = song;
   const totalBars = plan.chords.length;
   const currentBar = Math.min(totalBars, Math.floor(elapsed * plan.bpm / 240) + 1);
-  const section = Math.min(plan.form.length - 1, Math.floor((currentBar - 1) * plan.form.length / totalBars));
-  const theme = song.notes.filter(note => note.instrument === plan.instruments.lead[0] && note.beat < 16).slice(0, 24);
+  const section = Math.max(0, plan.sections.findIndex(part => currentBar - 1 >= part.startBar && currentBar - 1 < part.startBar + part.bars));
+  const theme = song.theme.slice(0, 24);
   const low = Math.min(...theme.map(note => note.pitch));
   const high = Math.max(...theme.map(note => note.pitch));
   const range = Math.max(1, high - low);
@@ -79,8 +79,8 @@ function CompositionDetails({ song, elapsed }: { song: Song; elapsed: number }) 
 
   return <section className="composition" aria-label="現在の曲の構成">
     <div className="composition-heading"><h3>曲の進行</h3><span>{formatTime(elapsed)} / {formatTime(plan.durationSeconds)}・{currentBar} / {totalBars}小節</span></div>
-    <ol className="form" aria-label={`現在は${formNames[plan.form[section]] ?? plan.form[section]}`}>
-      {plan.form.map((part, index) => <li key={`${part}-${index}`} className={index === section ? "current" : index < section ? "passed" : ""}><span>{index + 1}</span>{formNames[part] ?? part}</li>)}
+    <ol className="form" aria-label={`現在は${formNames[plan.sections[section].name] ?? plan.sections[section].name}`}>
+      {plan.sections.map((part, index) => <li key={`${part.name}-${index}`} className={index === section ? "current" : index < section ? "passed" : ""}><span>{part.startBar + 1}–{part.startBar + part.bars}</span>{formNames[part.name] ?? part.name}</li>)}
     </ol>
     <div className="detail-grid">
       <div><h3>楽器構成</h3><dl className="instruments">{instruments.map(([role, programs]) => <div key={role}><dt>{role}</dt><dd>{programs.map(program => INSTRUMENT_NAMES[program]).join("・")}</dd></div>)}</dl></div>

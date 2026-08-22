@@ -12,11 +12,38 @@ test("plans are deterministic and stay inside every genre contract", () => {
     assert.ok(first.bpm >= GENRES[genre].bpm[0] && first.bpm <= GENRES[genre].bpm[1]);
     assert.deepEqual(first.form, GENRES[genre].form);
     assert.ok(first.chords.length > 20);
+    assert.equal(first.sections[0].startBar, 0);
+    assert.equal(first.sections.at(-1)!.startBar + first.sections.at(-1)!.bars, first.chords.length);
+    first.sections.forEach((section, index) => {
+      assert.equal(section.startBar, first.sections.slice(0, index).reduce((bars, part) => bars + part.bars, 0));
+      assert.equal(section.bars % 4, 0);
+      assert.ok(section.energy >= .25 && section.energy <= 1);
+    });
     assert.ok(Object.values(GENRES[genre].instruments).every(pool => pool.length >= 2));
     assert.equal(first.instruments.lead.length, GENRES[genre].layers.lead);
     assert.equal(first.instruments.harmony.length, GENRES[genre].layers.harmony);
     assert.equal(first.instruments.color.length, GENRES[genre].layers.color);
     assert.equal(new Set([...first.instruments.lead, ...first.instruments.harmony, first.instruments.bass, ...first.instruments.color]).size, GENRES[genre].layers.lead + GENRES[genre].layers.harmony + GENRES[genre].layers.color + 1);
+  }
+});
+
+test("sections change dynamics and introduce melodies independent from the theme", () => {
+  for (const genre of genres) {
+    const plan = createTrackPlan(`variation-${genre}`, genre);
+    const song = buildSong(plan, ruleTheme(plan));
+    const leads = new Set(plan.instruments.lead);
+    const signatures: string[] = [];
+    for (let bar = 0; bar < plan.chords.length; bar += 4) {
+      const phrase = song.notes.filter(note => leads.has(note.instrument) && note.beat >= bar * 4 && note.beat < (bar + 4) * 4 && note.instrument === plan.instruments.lead[0]);
+      if (!phrase.length) continue;
+      const firstPitch = phrase[0].pitch;
+      signatures.push(phrase.slice(0, 20).map(note => `${(note.beat - bar * 4).toFixed(2)}:${note.pitch - firstPitch}:${note.duration.toFixed(2)}`).join("|"));
+    }
+    const counts = [...new Set(signatures)].map(signature => signatures.filter(value => value === signature).length);
+    assert.ok(new Set(signatures).size >= Math.min(4, Math.ceil(signatures.length / 3)), `${genre} lacks melodic variety`);
+    assert.ok(Math.max(...counts) <= Math.max(2, Math.ceil(signatures.length * .35)), `${genre} repeats one phrase too often`);
+    const densities = plan.sections.map(section => song.notes.filter(note => note.beat >= section.startBar * 4 && note.beat < (section.startBar + section.bars) * 4).length / section.bars);
+    assert.ok(Math.max(...densities) - Math.min(...densities) > 2, `${genre} sections do not change intensity`);
   }
 });
 
