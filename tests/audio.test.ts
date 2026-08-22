@@ -32,3 +32,13 @@ test("natural song endings keep the prepared worklet", () => {
 
   assert.equal(engine.synth, synth);
 });
+
+test("playback position follows AudioContext time and stays within the song", () => {
+  const engine = new AudioEngine();
+  engine.context = { currentTime: 42 } as AudioContext;
+  engine.startedAt = 12;
+  engine.duration = 100;
+  assert.equal(engine.position, 30);
+  engine.context = { currentTime: 200 } as AudioContext;
+  assert.equal(engine.position, 100);
+});

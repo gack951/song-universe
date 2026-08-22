@@ -10,6 +10,10 @@ export class AudioEngine {
   pack?: string;
   marker?: AudioScheduledSourceNode;
   token = 0;
+  startedAt?: number;
+  duration = 0;
+
+  get position() { return this.context && this.startedAt !== undefined ? Math.max(0, Math.min(this.duration, this.context.currentTime - this.startedAt)) : 0; }
 
   async prepare(pack: string) {
     this.context ??= new AudioContext({ latencyHint: "playback" });
@@ -68,12 +72,16 @@ export class AudioEngine {
     const token = ++this.token;
     this.synth.stopAll(true);
     const start = this.context.currentTime + .08;
+    this.startedAt = start;
+    this.duration = song.plan.durationSeconds;
     this.schedule(song.notes, song.plan.bpm, start);
     this.mark(start + song.plan.durationSeconds + 1, () => token === this.token && onFinish());
   }
 
   extend(song: Song, onFinish: () => void) {
     if (!this.context) return;
+    this.startedAt = this.context.currentTime - song.plan.durationSeconds;
+    this.duration = song.plan.durationSeconds;
     const beats = 32;
     const total = song.plan.chords.length * 4;
     const notes = song.notes.filter(note => note.beat >= total - beats).map(note => ({ ...note, beat: note.beat - (total - beats) }));
@@ -88,6 +96,8 @@ export class AudioEngine {
 
   stop(discardScheduled = false) {
     this.token++;
+    this.startedAt = undefined;
+    this.duration = 0;
     this.synth?.stopAll(true);
     if (this.marker) { this.marker.onended = null; this.marker.disconnect(); this.marker = undefined; }
     if (discardScheduled && this.synth) {

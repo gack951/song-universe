@@ -1,4 +1,4 @@
-const CACHE = "song-universe-shell-v3";
+const CACHE = "song-universe-shell-v4";
 const SHELL = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/worklets/spessasynth_processor.min.js"];
 self.addEventListener("install", event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener("activate", event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith("song-universe-shell-") && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())));

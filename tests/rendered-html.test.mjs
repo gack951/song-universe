@@ -8,8 +8,8 @@ test("server renders the one-screen player shell", async () => {
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.match(html, /SONG UNIVERSE/);
-  assert.match(html, /その瞬間だけの音楽/);
-  assert.match(html, /NEXT GENRE/);
+  assert.match(html, /次の曲のジャンル/);
   assert.match(html, /aria-label="最初の曲を再生"/);
+  assert.doesNotMatch(html, /ENDLESS|ON-DEVICE|AI COMPOSED|NO HISTORY|LOCAL ONLY/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/);
 });

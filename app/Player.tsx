@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AudioEngine, soundfontUrl } from "./audio";
-import { GENRES, aiParts, buildSong, createTrackPlan, initializeAI, newSeed, tooSimilar, type Genre, type PlaybackState, type Song } from "./music";
+import { GENRES, INSTRUMENT_NAMES, aiParts, buildSong, createTrackPlan, initializeAI, newSeed, tooSimilar, type Genre, type PlaybackState, type Song } from "./music";
 
 const engine = new AudioEngine();
 const genreOrder = Object.keys(GENRES) as Genre[];
+const formNames: Record<string, string> = { intro: "イントロ", head: "テーマ", solo: "ソロ", solos: "ソロ", "shout chorus": "シャウトコーラス", coda: "コーダ", A: "A", B: "B", break: "ブレイク", outro: "アウトロ", verse: "ヴァース", chorus: "コーラス", bridge: "ブリッジ", prechorus: "プレコーラス", "final chorus": "最終コーラス", exposition: "提示部", development: "展開部", recapitulation: "再現部" };
+const pitchNames = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
 
 async function cacheAsset(url: string) {
   const cache = await caches.open("song-universe-assets-v1");
@@ -52,12 +54,52 @@ function Visualizer({ song, active }: { song?: Song; active: boolean }) {
   return <canvas ref={canvasRef} className="visual" aria-label="曲の主題とリズムを表す抽象ビジュアル" />;
 }
 
+function formatTime(seconds: number) {
+  const value = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
+}
+
+function CompositionDetails({ song, elapsed }: { song: Song; elapsed: number }) {
+  const { plan } = song;
+  const totalBars = plan.chords.length;
+  const currentBar = Math.min(totalBars, Math.floor(elapsed * plan.bpm / 240) + 1);
+  const section = Math.min(plan.form.length - 1, Math.floor((currentBar - 1) * plan.form.length / totalBars));
+  const theme = song.notes.filter(note => note.instrument === plan.instruments.lead[0] && note.beat < 16).slice(0, 24);
+  const low = Math.min(...theme.map(note => note.pitch));
+  const high = Math.max(...theme.map(note => note.pitch));
+  const range = Math.max(1, high - low);
+  const instruments = [
+    ["主旋律", plan.instruments.lead],
+    ["和声", plan.instruments.harmony],
+    ["ベース", [plan.instruments.bass]],
+    ["色付け", plan.instruments.color],
+    ...(GENRES[plan.genre].drums === "none" ? [] : [["リズム", [128]]] as [string, number[]][]),
+  ] as [string, number[]][];
+  const melodyLabel = theme.map(note => `${pitchNames[note.pitch % 12]}${Math.floor(note.pitch / 12) - 1}`).join("、");
+
+  return <section className="composition" aria-label="現在の曲の構成">
+    <div className="composition-heading"><h3>曲の進行</h3><span>{formatTime(elapsed)} / {formatTime(plan.durationSeconds)}・{currentBar} / {totalBars}小節</span></div>
+    <ol className="form" aria-label={`現在は${formNames[plan.form[section]] ?? plan.form[section]}`}>
+      {plan.form.map((part, index) => <li key={`${part}-${index}`} className={index === section ? "current" : index < section ? "passed" : ""}><span>{index + 1}</span>{formNames[part] ?? part}</li>)}
+    </ol>
+    <div className="detail-grid">
+      <div><h3>楽器構成</h3><dl className="instruments">{instruments.map(([role, programs]) => <div key={role}><dt>{role}</dt><dd>{programs.map(program => INSTRUMENT_NAMES[program]).join("・")}</dd></div>)}</dl></div>
+      <div><h3>テーマのメロディー</h3><svg className="melody" viewBox="0 0 320 82" role="img" aria-label={`4小節のテーマ: ${melodyLabel}`}>
+        <title>4小節のテーマメロディー</title>
+        {[0, 1, 2, 3, 4].map(bar => <line key={bar} x1={bar * 80} x2={bar * 80} y1="0" y2="82" />)}
+        {theme.map((note, index) => <rect key={`${note.beat}-${note.pitch}-${index}`} x={note.beat / 16 * 312 + 4} y={68 - (note.pitch - low) / range * 58} width={Math.max(4, note.duration / 16 * 312 - 2)} height="7" rx="3.5" />)}
+      </svg></div>
+    </div>
+  </section>;
+}
+
 export default function Player() {
   const [genre, setGenre] = useState<Genre>("jazz");
   const [state, setState] = useState<PlaybackState>("loading");
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("準備を始めています");
   const [current, setCurrent] = useState<Song>();
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
   const queue = useRef<Song[]>([]);
   const history = useRef<string[]>([]);
@@ -113,7 +155,7 @@ export default function Player() {
     setState("loading");
     await engine.prepare(GENRES[song.plan.genre].pack);
     engine.play(song, () => void advanceRef.current(false));
-    queue.current[0] = song; currentRef.current = song; setCurrent(song); setState("playing"); updateMediaSession(song); extended.current = false;
+    queue.current[0] = song; currentRef.current = song; setCurrent(song); setElapsed(0); setState("playing"); updateMediaSession(song); extended.current = false;
     void (async () => { while (queue.current.length < 3) queue.current.push(await compose(desiredGenre.current)); })();
   }, [compose, updateMediaSession]);
 
@@ -191,25 +233,31 @@ export default function Player() {
     engine.context.onstatechange = () => { if (engine.context?.state === "interrupted") setState("paused"); };
   }, [current]);
 
+  useEffect(() => {
+    if (state !== "playing") return;
+    const timer = setInterval(() => setElapsed(engine.position), 500);
+    return () => clearInterval(timer);
+  }, [current, state]);
+
   const ready = state !== "loading" && state !== "error";
   const playing = state === "playing";
   return <main>
-    <header><span className="eyebrow">ENDLESS • ON-DEVICE</span><h1>SONG<br />UNIVERSE</h1><p>その瞬間だけの音楽を、端末の中で。</p></header>
+    <header><h1>SONG UNIVERSE</h1></header>
     <section className="player" aria-live="polite">
       <Visualizer song={current} active={playing} />
       <div className="track-copy">
-        <span className={`status ${state}`}>{state === "loading" ? progressLabel : state === "buffering" ? "次の曲を生成中" : playing ? "NOW PLAYING" : state === "paused" ? "PAUSED" : "ERROR"}</span>
+        <span className={`status ${state}`}>{state === "loading" ? progressLabel : state === "buffering" ? "次の曲を生成中" : playing ? "再生中" : state === "paused" ? "一時停止" : "エラー"}</span>
         <h2>{current?.plan.title ?? (progress === 100 ? "準備ができました" : "新しい宇宙を生成中")}</h2>
-        {current ? <p>{GENRES[current.plan.genre].label} <i /> {current.plan.mood} <i /> {current.plan.bpm} BPM</p> : <p>曲は保存されず、同じ瞬間は戻りません。</p>}
+        {current ? <p>{GENRES[current.plan.genre].label} <i /> {current.plan.mood} <i /> {current.plan.key} <i /> {current.plan.bpm} BPM</p> : null}
       </div>
       {state === "loading" && !current ? <div className="progress" role="progressbar" aria-valuenow={progress} aria-label={progressLabel}><span style={{ width: `${progress}%` }} /></div> : null}
       {error ? <div className="error" role="alert"><p>{error}</p><button onClick={() => void prepare()}>再取得・再試行</button></div> : null}
       <div className="controls">
         <button className="play" onClick={() => void toggle()} disabled={!ready} aria-label={playing ? "一時停止" : current ? "再生" : "最初の曲を再生"}>{playing ? "Ⅱ" : "▶"}</button>
-        <button className="next" onClick={() => void advance(true)} disabled={!current || state === "loading"} aria-label="次の曲">NEXT <span>→</span></button>
+        <button className="next" onClick={() => void advance(true)} disabled={!current || state === "loading"} aria-label="次の曲">次へ <span>→</span></button>
       </div>
     </section>
-    <nav aria-label="次の曲のジャンル"><span>NEXT GENRE</span><div>{genreOrder.map(item => <button key={item} className={genre === item ? "selected" : ""} onClick={() => chooseGenre(item)} aria-pressed={genre === item}>{GENRES[item].label}</button>)}</div></nav>
-    <footer><span>AI COMPOSED</span><span>NO HISTORY</span><span>LOCAL ONLY</span></footer>
+    {current ? <CompositionDetails song={current} elapsed={elapsed} /> : null}
+    <nav aria-label="次の曲のジャンル"><span>次の曲のジャンル</span><div>{genreOrder.map(item => <button key={item} className={genre === item ? "selected" : ""} onClick={() => chooseGenre(item)} aria-pressed={genre === item}>{GENRES[item].label}</button>)}</div></nav>
   </main>;
 }
