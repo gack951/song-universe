@@ -18,7 +18,14 @@ npm test
 - `chord_pitches_improv` と `drum_kit_rnn` をセルフホストし、TensorFlow.js WebGLで端末内推論
 - MIDI互換の演奏イベントを生成し、SpessaSynthのAudioWorkletで合成
 - GeneralUser GS 2.0.3を実証用に3つのSF3サブセットへ分割
-- Cache Storage、Web App Manifest、Media Session、Canvasビジュアル
+- Cache Storage、Web App Manifest、Media Session、Canvasビジュアル／リアルタイム・ピアノロール
+
+## 自動生成方針
+
+- 曲→セクション→4小節フレーズの階層で、輪郭・リズム骨格・コード適合音を順に決める（[MusicVAE](https://arxiv.org/abs/1803.05428)、[Music Frameworks](https://archives.ismir.net/ismir2021/paper/000017.pdf)）。
+- A/A′/応答/終止として小さな語彙を意図的に反復・変奏し、句末ほど予測可能にする（[Daiほか 2022](https://arxiv.org/abs/2209.00182)）。
+- ジャズは拍位置・フレーズ・コードを同時に扱い、弱拍の外音だけを次の強拍で解決する（[Jazz Transformer](https://archives.ismir.net/ismir2020/paper/000339.pdf)、[Frielerほか 2022](https://transactions.ismir.net/articles/10.5334/tismir.87)）。
+- 複数主旋律は独立生成せず、同一フレーズからコード構成音の3度・4度・5度・6度で派生する。
 
 モデルは `public/models/`、音源は `public/soundfonts/`、ライセンス全文は `public/licenses/` にあります。音源パックを再生成する場合はGeneralUser GSのSF2を取得し、`npm run assets -- /path/to/GeneralUser-GS.sf2` を実行してください。
 

@@ -80,6 +80,31 @@ test("instrumentation varies by song and expands big band and classical ensemble
   }
 });
 
+test("ensemble lead voices share phrasing without harmonic collisions", () => {
+  for (const genre of ["bigBand", "classical"] as const) for (let seed = 0; seed < 6; seed++) {
+    const plan = createTrackPlan(`${genre}-voicing-${seed}`, genre);
+    const song = buildSong(plan);
+    const [lead, harmony] = plan.instruments.lead;
+    const primary = song.notes.filter(note => note.instrument === lead);
+    const secondary = song.notes.filter(note => note.instrument === harmony);
+    assert.equal(secondary.length, primary.length);
+    primary.forEach(note => {
+      const partner = secondary.find(other => other.beat === note.beat && other.duration === note.duration);
+      assert.ok(partner, `${genre} lead rhythm diverged at ${note.beat}`);
+      assert.ok([3, 4, 5, 7, 8, 9].includes(Math.abs(partner.pitch - note.pitch) % 12), `${genre} lead voices clash at ${note.beat}`);
+    });
+  }
+});
+
+test("jazz melody onsets stay on the beat or swung eighth grid", () => {
+  const plan = createTrackPlan("jazz-metric-phrasing", "jazz");
+  const song = buildSong(plan, Array.from({ length: 32 }, (_, index) => ({ beat: index * .25, duration: .25, pitch: 54 + index % 19, velocity: 90, instrument: plan.instruments.lead[0] })));
+  song.notes.filter(note => plan.instruments.lead.includes(note.instrument)).forEach(note => {
+    const position = note.beat - Math.floor(note.beat);
+    assert.ok(Math.abs(position) < 1e-9 || Math.abs(position - GENRES.jazz.swing) < 1e-9, `off-grid jazz onset ${note.beat}`);
+  });
+});
+
 test("the in-memory 32-song fingerprint window rejects near repeats", () => {
   const plan = createTrackPlan("fingerprint", "jazz");
   const value = fingerprint(ruleTheme(plan));

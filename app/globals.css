@@ -44,6 +44,12 @@ nav button.selected { color: #160d0a; border-color: var(--acid); background: var
 .form li span { margin-right: 6px; font: .58rem ui-monospace, SFMono-Regular, monospace; }
 .form li.passed { color: #b7aebb; border-color: #55485c; }
 .form li.current { color: #160d0a; border-color: var(--acid); background: var(--acid); font-weight: 800; }
+.piano-roll { margin: 0 0 20px; }
+.piano-roll-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.piano-roll-heading span { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px 10px; }
+.piano-roll-heading i { font: normal .6rem ui-monospace, SFMono-Regular, monospace; }
+.piano-roll-heading i::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 4px; border-radius: 2px; background: currentColor; }
+.piano-roll canvas { width: 100%; height: 142px; display: block; border: 1px solid #211d25; border-radius: 12px; }
 .detail-grid { display: grid; gap: 20px; }
 .instruments { display: grid; gap: 7px; margin: 0; }
 .instruments div { display: grid; grid-template-columns: 4.5rem 1fr; gap: 8px; align-items: baseline; }

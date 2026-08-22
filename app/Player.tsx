@@ -54,12 +54,54 @@ function Visualizer({ song, active }: { song?: Song; active: boolean }) {
   return <canvas ref={canvasRef} className="visual" aria-label="曲の主題とリズムを表す抽象ビジュアル" />;
 }
 
+function PianoRoll({ song, elapsed, active }: { song: Song; elapsed: number; active: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const elapsedRef = useRef(elapsed);
+  useEffect(() => { elapsedRef.current = elapsed; }, [elapsed]);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const instruments = song.plan.instruments.lead;
+    const lead = new Set(instruments);
+    const melody = song.notes.filter(note => lead.has(note.instrument));
+    const low = Math.floor(Math.min(...melody.map(note => note.pitch)) / 12) * 12;
+    const high = Math.ceil((Math.max(...melody.map(note => note.pitch)) + 1) / 12) * 12;
+    let frame = 0;
+    const resize = () => { const rect = canvas.getBoundingClientRect(); canvas.width = rect.width * devicePixelRatio; canvas.height = rect.height * devicePixelRatio; context.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0); };
+    const draw = () => {
+      const width = canvas.clientWidth, height = canvas.clientHeight;
+      const current = (active ? engine.position : elapsedRef.current) * song.plan.bpm / 60;
+      const start = current - 3, span = 24;
+      context.clearRect(0, 0, width, height); context.fillStyle = "#0b0a0e"; context.fillRect(0, 0, width, height);
+      context.strokeStyle = "#29242e"; context.lineWidth = 1;
+      for (let beat = Math.ceil(start); beat < start + span; beat++) { const x = (beat - start) / span * width; context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke(); }
+      for (let pitch = low; pitch <= high; pitch += 12) { const y = (high - pitch) / Math.max(1, high - low) * height; context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke(); }
+      melody.filter(note => note.beat + note.duration >= start && note.beat <= start + span).forEach(note => {
+        const voice = instruments.indexOf(note.instrument);
+        context.fillStyle = `hsl(${12 + voice * 92} 86% ${voice ? 67 : 62}%)`;
+        context.fillRect((note.beat - start) / span * width, (high - note.pitch) / Math.max(1, high - low) * (height - 7), Math.max(3, note.duration / span * width), 6);
+      });
+      context.fillStyle = "#f6f0e8"; context.fillRect(3 / span * width - 1, 0, 2, height);
+      if (active && !reduced && !document.hidden) frame = requestAnimationFrame(draw);
+    };
+    resize(); draw();
+    const observer = new ResizeObserver(() => { resize(); draw(); }); observer.observe(canvas);
+    const visibility = () => { cancelAnimationFrame(frame); if (!document.hidden && active && !reduced) frame = requestAnimationFrame(draw); };
+    document.addEventListener("visibilitychange", visibility);
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); document.removeEventListener("visibilitychange", visibility); };
+  }, [song, active]);
+  const names = song.plan.instruments.lead.map(program => INSTRUMENT_NAMES[program]);
+  return <div className="piano-roll"><div className="piano-roll-heading"><h3>リアルタイム・ピアノロール</h3><span>{names.map((name, index) => <i key={name} style={{ color: `hsl(${12 + index * 92} 86% ${index ? 67 : 62}%)` }}>{name}</i>)}</span></div><canvas ref={canvasRef} role="img" aria-label={`旋律楽器: ${names.join("、")}`} /></div>;
+}
+
 function formatTime(seconds: number) {
   const value = Math.max(0, Math.floor(seconds));
   return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
 }
 
-function CompositionDetails({ song, elapsed }: { song: Song; elapsed: number }) {
+function CompositionDetails({ song, elapsed, active }: { song: Song; elapsed: number; active: boolean }) {
   const { plan } = song;
   const totalBars = plan.chords.length;
   const currentBar = Math.min(totalBars, Math.floor(elapsed * plan.bpm / 240) + 1);
@@ -82,6 +124,7 @@ function CompositionDetails({ song, elapsed }: { song: Song; elapsed: number }) 
     <ol className="form" aria-label={`現在は${formNames[plan.sections[section].name] ?? plan.sections[section].name}`}>
       {plan.sections.map((part, index) => <li key={`${part.name}-${index}`} className={index === section ? "current" : index < section ? "passed" : ""}><span>{part.startBar + 1}–{part.startBar + part.bars}</span>{formNames[part.name] ?? part.name}</li>)}
     </ol>
+    <PianoRoll song={song} elapsed={elapsed} active={active} />
     <div className="detail-grid">
       <div><h3>楽器構成</h3><dl className="instruments">{instruments.map(([role, programs]) => <div key={role}><dt>{role}</dt><dd>{programs.map(program => INSTRUMENT_NAMES[program]).join("・")}</dd></div>)}</dl></div>
       <div><h3>テーマのメロディー</h3><svg className="melody" viewBox="0 0 320 82" role="img" aria-label={`4小節のテーマ: ${melodyLabel}`}>
@@ -257,7 +300,7 @@ export default function Player() {
         <button className="next" onClick={() => void advance(true)} disabled={!current || state === "loading"} aria-label="次の曲">次へ <span>→</span></button>
       </div>
     </section>
-    {current ? <CompositionDetails song={current} elapsed={elapsed} /> : null}
+    {current ? <CompositionDetails song={current} elapsed={elapsed} active={playing} /> : null}
     <nav aria-label="次の曲のジャンル"><span>次の曲のジャンル</span><div>{genreOrder.map(item => <button key={item} className={genre === item ? "selected" : ""} onClick={() => chooseGenre(item)} aria-pressed={genre === item}>{GENRES[item].label}</button>)}</div></nav>
   </main>;
 }
