@@ -11,6 +11,7 @@ export type TrackPlan = {
   form: string[];
   chords: string[];
   sections: SectionPlan[];
+  phraseEnds: number[];
   instruments: {
     lead: number[];
     harmony: number[];
@@ -162,6 +163,21 @@ function makeSections(rng: () => number, config: GenreConfig, bars: number, mood
   });
 }
 
+function makePhraseEnds(rng: () => number, sections: SectionPlan[]) {
+  const ends: number[] = [];
+  sections.forEach((section, sectionIndex) => {
+    let bar = section.startBar;
+    let remaining = section.bars - (sectionIndex === sections.length - 1 ? 4 : 0);
+    while (remaining > 0) {
+      const choices = [4, 4, 4, 3, 5, 6, 2, 7, 8].filter(length => length <= remaining && (remaining - length === 0 || remaining - length >= 2));
+      const length = pick(rng, choices);
+      bar += length; remaining -= length; ends.push(bar);
+    }
+    if (bar < section.startBar + section.bars) ends.push(section.startBar + section.bars);
+  });
+  return ends;
+}
+
 export function createTrackPlan(seed: string, genre: Genre): TrackPlan {
   const rng = random(seed);
   const config = GENRES[genre];
@@ -180,10 +196,6 @@ export function createTrackPlan(seed: string, genre: Genre): TrackPlan {
     return Array.from({ length: section.bars }, (_, bar) => chordName(root, degrees[(bar + turn) % degrees.length]));
   });
   for (const section of sections) {
-    const end = section.startBar + section.bars;
-    for (let bar = section.startBar + 3; bar < end - 1; bar += 4) chords[bar] = chordName(root, 5);
-    chords[end - 2] = chordName(root, 5);
-    chords[end - 1] = chordName(root, 1);
     if ((genre === "jazz" || genre === "pop") && section.bars >= 8) {
       const bar = section.startBar + Math.floor(rng() * (section.bars / 4 - 1)) * 4 + 1;
       const pairs = genre === "jazz"
@@ -192,7 +204,19 @@ export function createTrackPlan(seed: string, genre: Genre): TrackPlan {
       [chords[bar], chords[bar + 1]] = pick(rng, pairs);
     }
   }
-  config.cadence.forEach((degree, index) => { chords[chords.length - config.cadence.length + index] = chordName(root, degree); });
+  const phraseEnds = makePhraseEnds(rng, sections);
+  const linkEnds: number[] = [];
+  for (const end of phraseEnds) {
+    const sectionEnd = sections.some(section => end === section.startBar + section.bars);
+    const cadence = pick(rng, sectionEnd ? ["authentic", "authentic", "plagal"] : ["half", "authentic", "plagal", "deceptive", "link", "link"]);
+    if (cadence === "authentic") [chords[end - 2], chords[end - 1]] = [chordName(root, 5), chordName(root, 1)];
+    if (cadence === "plagal") [chords[end - 2], chords[end - 1]] = [chordName(root, 4), chordName(root, 1)];
+    if (cadence === "deceptive") [chords[end - 2], chords[end - 1]] = [chordName(root, 5), chordName(root, 6)];
+    if (cadence === "half") [chords[end - 2], chords[end - 1]] = [chordName(root, 2), chordName(root, 5)];
+    if (cadence === "link") linkEnds.push(end);
+  }
+  config.cadence.slice(0, -1).forEach((degree, index, cadence) => { chords[chords.length - cadence.length + index] = chordName(root, degree); });
+  linkEnds.forEach(end => { chords[end - 1] = namedChord(rootOf(chords[end]), 7, "7"); });
   const instruments = chooseInstruments(rng, config);
   return {
     seed,
@@ -205,6 +229,7 @@ export function createTrackPlan(seed: string, genre: Genre): TrackPlan {
     form: config.form,
     chords,
     sections,
+    phraseEnds,
     instruments,
   };
 }
@@ -222,7 +247,7 @@ function chordPitches(chord: string, octave = 4) {
 }
 
 export function ruleTheme(plan: TrackPlan, salt = "rule"): NoteEvent[] {
-  return melodyPhrase(plan, 0, "theme", salt);
+  return melodyPhrase(plan, 0, 4, "theme", salt);
 }
 
 function nearestChordPitch(pitch: number, chord: string) {
@@ -243,27 +268,30 @@ function swingOffset(config: GenreConfig, beat: number) {
   return config.swing > .5 && beat % 1 === .5 ? Math.floor(beat) + config.swing : beat;
 }
 
-type PhraseEnding = "closed" | "imperfect" | "half" | "open" | "continue";
+type PhraseEnding = "closed" | "imperfect" | "half" | "plagal" | "deceptive" | "continue";
 
-function phraseEnding(plan: TrackPlan, startBar: number, salt: string): PhraseEnding {
-  const endBar = startBar + 4;
+function phraseEnding(plan: TrackPlan, startBar: number, bars: number, salt: string): PhraseEnding {
+  const endBar = startBar + bars;
   if (endBar >= plan.chords.length) return "closed";
-  const sectionEnd = plan.sections.some(section => endBar === section.startBar + section.bars);
-  return pick(random(`${plan.seed}:ending:${startBar}:${salt}`), sectionEnd
-    ? ["closed", "imperfect", "imperfect"] as const
-    : ["half", "open", "continue", "continue"] as const);
+  const tonic = ROOTS.indexOf(plan.key.replace("♭", "b").replace("♯", "#"));
+  const previous = rootOf(plan.chords[endBar - 2]), final = rootOf(plan.chords[endBar - 1]);
+  if (previous === (tonic + 5) % 12 && final === tonic) return "plagal";
+  if (previous === (tonic + 7) % 12 && final === tonic) return pick(random(`${plan.seed}:ending:${startBar}:${salt}`), ["closed", "imperfect", "imperfect"] as const);
+  if (previous === (tonic + 7) % 12 && final === (tonic + 9) % 12) return "deceptive";
+  if (final === (tonic + 7) % 12) return "half";
+  return "continue";
 }
 
-function endingPitch(plan: TrackPlan, startBar: number, target: number, ending: PhraseEnding) {
-  const chord = plan.chords[startBar + 3];
+function endingPitch(plan: TrackPlan, startBar: number, bars: number, target: number, ending: PhraseEnding) {
+  const chord = plan.chords[startBar + bars - 1];
   if (ending === "closed") return nearestRootPitch(target, chord);
-  const destination = ending === "continue" ? plan.chords[Math.min(startBar + 4, plan.chords.length - 1)] : chord;
+  const destination = ending === "continue" ? plan.chords[Math.min(startBar + bars, plan.chords.length - 1)] : chord;
   const tones = [-1, 0, 1].flatMap(octave => chordPitches(destination, 4).slice(0, 3).map(pitch => pitch + octave * 12));
-  const candidates = ending === "half" ? tones : tones.filter(pitch => pitch % 12 !== rootOf(destination));
+  const candidates = ending === "half" || ending === "plagal" ? tones : tones.filter(pitch => pitch % 12 !== rootOf(destination));
   return nearest(target, candidates);
 }
 
-function melodyPhrase(plan: TrackPlan, startBar: number, mode: SectionPlan["melody"], salt: string, source: NoteEvent[] = []) {
+function melodyPhrase(plan: TrackPlan, startBar: number, barCount: number, mode: SectionPlan["melody"], salt: string, source: NoteEvent[] = []) {
   const config = GENRES[plan.genre];
   const rng = random(`${plan.seed}:${mode}:${startBar}:${salt}`);
   const keyRoot = ROOTS.indexOf(plan.key.replace("♭", "b").replace("♯", "#"));
@@ -275,16 +303,14 @@ function melodyPhrase(plan: TrackPlan, startBar: number, mode: SectionPlan["melo
     ? motif.filter((_, index) => index !== motif.length - 2)
     : motif.map((beat, index) => index === motif.length - 1 ? Math.max(motif[index - 1] + config.melody.grid, beat - config.melody.grid) : beat);
   const answer = pick(rng, config.melody.rhythms.filter(pattern => pattern !== motif));
-  let ending = phraseEnding(plan, startBar, salt);
-  if (mode === "theme" && ending === "continue") ending = "open";
-  const bars = mode === "sparse"
-    ? (rng() > .5 ? [[0, 2], [0, 2], [0, 1.5, 2.5], [0, 2]] : [[0, 1.5], [0, 2], [0, 2.5], [0, 2]])
-    : [motif, motifPrime, answer, [0, 1, 2]];
-  bars[3] = pick(rng, ending === "continue"
+  const ending = phraseEnding(plan, startBar, barCount, salt);
+  const bars = Array.from({ length: barCount }, (_, bar) => mode === "sparse"
+    ? pick(rng, [[0, 2], [0, 1.5], [0, 2.5]])
+    : bar % 3 === 0 ? motif : bar % 3 === 1 ? motifPrime : answer);
+  bars[barCount - 1] = pick(rng, ending === "continue"
     ? [[0, 1.5, 2.5, 3.5], [.5, 1.5, 2.5, 3.5]]
     : mode === "sparse" ? [[0, 2], [0, 1.5], [.5, 2.5]] : [[0, 1, 2], [0, .5, 1.5, 2.5], [0, 1, 2.5], [.5, 1.5, 3]]);
-  if (mode !== "sparse" && rng() < config.melody.syncopation) bars[1 + Math.floor(rng() * 2)] = pick(rng, [[.5, 1.5, 2.5, 3.5], [.5, 1, 2.5, 3.5], [.5, 1.5, 2, 3.5]]);
-  const contours = mode === "contrast" ? [5, 2, -2, 0] : mode === "improv" ? [0, 5, 8, 1] : [0, 3, 7, 0];
+  if (barCount > 2 && mode !== "sparse" && rng() < config.melody.syncopation) bars[1 + Math.floor(rng() * (barCount - 2))] = pick(rng, [[.5, 1.5, 2.5, 3.5], [.5, 1, 2.5, 3.5], [.5, 1.5, 2, 3.5]]);
   const tension = config.melody.tension * (mode === "improv" ? 1.6 : mode === "sparse" ? .4 : 1);
   const sourcePitches = [...source].sort((a, b) => a.beat - b.beat).map(note => note.pitch);
   const learnedShape = sourcePitches.slice(0, 4).map(pitch => Math.max(-5, Math.min(5, pitch - sourcePitches[0])));
@@ -292,27 +318,29 @@ function melodyPhrase(plan: TrackPlan, startBar: number, mode: SectionPlan["melo
   const shape = new Set(learnedShape).size >= 3 ? learnedShape : pick(rng, shapes);
   const sequence = rng() > .5 ? 2 : -2;
   const events: NoteEvent[] = [];
-  const sectionEnd = plan.sections.some(section => startBar + 4 === section.startBar + section.bars);
+  const sectionEnd = plan.sections.some(section => startBar + barCount === section.startBar + section.bars);
   let previous = center;
   bars.forEach((pattern, bar) => pattern.forEach((rawOffset, index) => {
     const offset = swingOffset(config, rawOffset);
-    const nextRaw = pattern[index + 1] ?? (bar === 3 ? 3.5 : 4);
+    const lastBar = bar === barCount - 1;
+    const nextRaw = pattern[index + 1] ?? (lastBar ? 3.5 : 4);
     const next = swingOffset(config, nextRaw);
     const beat = (startBar + bar) * 4 + offset;
     const chord = plan.chords[startBar + bar];
     const chordTones = [-1, 0, 1].flatMap(octave => chordPitches(chord, 4).map(pitch => pitch + octave * 12));
     const strong = rawOffset % 2 === 0;
-    const cadence = bar === 3 && index === pattern.length - 1;
-    const gesture = bar === 1 ? shape[index % shape.length] + sequence : bar === 2 ? -shape[shape.length - 1 - index % shape.length] : bar === 3 ? [4, 2, 0, -1][Math.min(index, 3)] : shape[index % shape.length];
-    const target = center + contours[bar] + gesture;
+    const cadence = lastBar && index === pattern.length - 1;
+    const gesture = lastBar ? [4, 2, 0, -1][Math.min(index, 3)] : bar % 3 === 1 ? shape[index % shape.length] + sequence : bar % 3 === 2 ? -shape[shape.length - 1 - index % shape.length] : shape[index % shape.length];
+    const arc = barCount === 1 ? 0 : Math.sin(Math.PI * bar / (barCount - 1));
+    const target = center + Math.round(arc * (mode === "improv" ? 8 : mode === "sparse" ? 3 : 5)) + (mode === "contrast" ? 2 : 0) + gesture;
     let pitch = nearest(target, strong || cadence ? chordTones : scale);
     if (!strong && !cadence && rng() < tension) pitch = previous + pick(rng, plan.genre === "jazz" || plan.genre === "funk" ? [-2, -1, 1, 2] : [-1, 1]);
     if (Math.abs(pitch - previous) > (mode === "improv" ? 12 : 7)) pitch += pitch > previous ? -12 : 12;
-    if (cadence) pitch = endingPitch(plan, startBar, target, ending);
+    if (cadence) pitch = endingPitch(plan, startBar, barCount, target, ending);
     const duration = cadence
       ? ending === "continue" ? Math.max(.18, 4 - offset - .04) : Math.max(.4, (sectionEnd ? 3 : 3.5) - offset)
       : Math.max(config.melody.grid * .72, (next - offset) * .9);
-    events.push({ beat, duration, pitch, velocity: 70 + Math.round((1 - Math.abs(bar - 2) / 3) * 16) + (strong ? 5 : 0), instrument: plan.instruments.lead[0] });
+    events.push({ beat, duration, pitch, velocity: 70 + Math.round(arc * 16) + (strong ? 5 : 0), instrument: plan.instruments.lead[0] });
     previous = pitch;
   }));
   return events;
@@ -322,13 +350,12 @@ function placeTheme(theme: NoteEvent[], plan: TrackPlan, startBar: number, varia
   const shift = variation % 3 === 1 ? 2 : variation % 3 === 2 ? -2 : 0;
   const lastBeat = Math.max(...theme.map(note => note.beat));
   const sectionEnd = plan.sections.some(section => startBar + 4 === section.startBar + section.bars);
-  const selectedEnding = phraseEnding(plan, startBar, `placed:${variation}`);
-  const ending = selectedEnding === "continue" ? "open" : selectedEnding;
+  const ending = phraseEnding(plan, startBar, 4, `placed:${variation}`);
   return theme.map(note => {
     const inverted = variation % 4 === 2 ? theme[0].pitch - (note.pitch - theme[0].pitch) : note.pitch;
     const beat = startBar * 4 + note.beat;
     const chord = plan.chords[Math.floor(beat / 4)];
-    const pitch = note.beat === lastBeat ? endingPitch(plan, startBar, inverted + shift, ending) : note.beat % 1 === 0 ? nearestChordPitch(inverted + shift, chord) : inverted + shift;
+    const pitch = note.beat === lastBeat ? endingPitch(plan, startBar, 4, inverted + shift, ending) : note.beat % 1 === 0 ? nearestChordPitch(inverted + shift, chord) : inverted + shift;
     return { ...note, beat, duration: note.beat === lastBeat && sectionEnd ? Math.min(note.duration, 1) : note.duration, pitch, velocity: Math.min(116, note.velocity + (variation % 2) * 5), instrument: plan.instruments.lead[0] };
   });
 }
@@ -339,7 +366,7 @@ function addLeadVoices(notes: NoteEvent[], melody: NoteEvent[], plan: TrackPlan)
   if (plan.genre === "bigBand" && plan.instruments.lead[1]) {
     const instrument = plan.instruments.lead[1];
     const [low, high] = RANGES[instrument];
-    const answerAt = Math.floor(primary[0].beat / 16) * 16 + 8;
+    const answerAt = primary[0].beat + (Math.max(...primary.map(note => note.beat + note.duration)) - primary[0].beat) / 2;
     const answer = primary.filter(note => note.beat >= answerAt).map(note => ({ ...note, pitch: Math.max(low, Math.min(high, note.pitch)), velocity: note.velocity - 3, instrument }));
     notes.push(...primary.filter(note => note.beat < answerAt), ...answer);
     const cadence = answer.at(-1);
@@ -447,7 +474,7 @@ export function buildSong(plan: TrackPlan, aiTheme?: NoteEvent[], aiDrums?: Note
   const config = GENRES[plan.genre];
   const bars = plan.chords.length;
   const totalBeats = bars * 4;
-  const theme = aiTheme?.length ? melodyPhrase(plan, 0, "theme", "ai", aiTheme) : ruleTheme(plan);
+  const theme = aiTheme?.length ? melodyPhrase(plan, 0, 4, "theme", "ai", aiTheme) : ruleTheme(plan);
   const notes: NoteEvent[] = [];
   for (const [sectionIndex, section] of plan.sections.entries()) {
     for (let bar = section.startBar; bar < section.startBar + section.bars; bar++) {
@@ -456,13 +483,16 @@ export function buildSong(plan: TrackPlan, aiTheme?: NoteEvent[], aiDrums?: Note
       addRhythm(notes, plan, bar, section);
       addColor(notes, plan, bar, section);
     }
-    for (let phrase = 0; phrase < section.bars / 4; phrase++) {
-      const startBar = section.startBar + phrase * 4;
-      const melody = section.melody === "theme" && phrase === 0
+    let startBar = section.startBar;
+    const phraseEnds = plan.phraseEnds.filter(end => end > section.startBar && end <= section.startBar + section.bars);
+    phraseEnds.forEach((endBar, phrase) => {
+      const phraseBars = endBar - startBar;
+      const melody = section.melody === "theme" && phrase === 0 && phraseBars === 4
         ? placeTheme(theme, plan, startBar, sectionIndex)
-        : melodyPhrase(plan, startBar, section.melody === "theme" ? (phrase % 2 ? "contrast" : "improv") : section.melody, `${sectionIndex}:${phrase}`);
+        : melodyPhrase(plan, startBar, phraseBars, section.melody === "theme" ? (phrase ? (phrase % 2 ? "contrast" : "improv") : "theme") : section.melody, `${sectionIndex}:${phrase}`, phrase === 0 ? theme : undefined);
       addLeadVoices(notes, melody, plan);
-    }
+      startBar = endBar;
+    });
     if (aiDrums?.length && config.drums !== "none" && section.energy > .7) {
       const fillBar = section.startBar + section.bars - 1;
       for (const note of aiDrums) notes.push({ ...note, beat: fillBar * 4 + swingOffset(config, note.beat % 4), velocity: 58 + section.energy * 32, instrument: 128 });

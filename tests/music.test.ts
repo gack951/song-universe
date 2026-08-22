@@ -19,6 +19,8 @@ test("plans are deterministic and stay inside every genre contract", () => {
     assert.ok(first.chords.length > 20);
     assert.equal(first.sections[0].startBar, 0);
     assert.equal(first.sections.at(-1)!.startBar + first.sections.at(-1)!.bars, first.chords.length);
+    assert.equal(first.phraseEnds.at(-1), first.chords.length);
+    first.phraseEnds.forEach((end, index) => assert.ok(end - (first.phraseEnds[index - 1] ?? 0) >= 2 && end - (first.phraseEnds[index - 1] ?? 0) <= 8));
     first.sections.forEach((section, index) => {
       assert.equal(section.startBar, first.sections.slice(0, index).reduce((bars, part) => bars + part.bars, 0));
       assert.equal(section.bars % 4, 0);
@@ -38,11 +40,13 @@ test("sections change dynamics and introduce melodies independent from the theme
     const song = buildSong(plan, ruleTheme(plan));
     const leads = new Set(plan.instruments.lead);
     const signatures: string[] = [];
-    for (let bar = 0; bar < plan.chords.length; bar += 4) {
-      const phrase = song.notes.filter(note => leads.has(note.instrument) && note.beat >= bar * 4 && note.beat < (bar + 4) * 4 && note.instrument === plan.instruments.lead[0]);
+    let startBar = 0;
+    for (const endBar of plan.phraseEnds) {
+      const phraseStart = startBar; startBar = endBar;
+      const phrase = song.notes.filter(note => leads.has(note.instrument) && note.beat >= phraseStart * 4 && note.beat < endBar * 4 && note.instrument === plan.instruments.lead[0]);
       if (!phrase.length) continue;
       const firstPitch = phrase[0].pitch;
-      signatures.push(phrase.slice(0, 20).map(note => `${(note.beat - bar * 4).toFixed(2)}:${note.pitch - firstPitch}:${note.duration.toFixed(2)}`).join("|"));
+      signatures.push(phrase.slice(0, 20).map(note => `${(note.beat - phraseStart * 4).toFixed(2)}:${note.pitch - firstPitch}:${note.duration.toFixed(2)}`).join("|"));
     }
     const counts = [...new Set(signatures)].map(signature => signatures.filter(value => value === signature).length);
     assert.ok(new Set(signatures).size >= Math.min(4, Math.ceil(signatures.length / 3)), `${genre} lacks melodic variety`);
@@ -134,23 +138,34 @@ test("phrases vary closure while sections cadence and jazz and pop keep controll
       const plan = createTrackPlan(`cadence-${genre}-${seed}`, genre);
       const tonic = roots.indexOf(plan.key.replace("♭", "b").replace("♯", "#"));
       plan.sections.forEach(section => {
-        const tail = plan.chords.slice(section.startBar + section.bars - 3, section.startBar + section.bars).map(chord => roots.indexOf(chord.match(/^[A-G](?:b|#)?/)![0]));
-        assert.ok(tail.includes((tonic + 7) % 12));
+        const tail = plan.chords.slice(section.startBar + section.bars - 2, section.startBar + section.bars).map(chord => roots.indexOf(chord.match(/^[A-G](?:b|#)?/)![0]));
+        assert.ok([(tonic + 5) % 12, (tonic + 7) % 12].includes(tail[0]));
         assert.equal(tail.at(-1), tonic);
       });
       const song = buildSong(plan);
-      for (let startBar = 0; startBar < plan.chords.length; startBar += 4) {
-        const end = (startBar + 4) * 4;
+      let startBar = 0;
+      for (const endBar of plan.phraseEnds) {
+        const end = endBar * 4;
         const leads = song.notes.filter(note => plan.instruments.lead.includes(note.instrument) && note.beat >= startBar * 4 && note.beat < end);
         const lastBeat = Math.max(...leads.map(note => note.beat));
         const last = leads.filter(note => note.beat === lastBeat);
         const previous = leads.filter(note => note.beat < lastBeat).at(-1)!;
-        const root = roots.indexOf(plan.chords[startBar + 3].match(/^[A-G](?:b|#)?/)![0]);
+        const root = roots.indexOf(plan.chords[endBar - 1].match(/^[A-G](?:b|#)?/)![0]);
+        const previousRoot = roots.indexOf(plan.chords[endBar - 2].match(/^[A-G](?:b|#)?/)![0]);
+        const nextRoot = endBar < plan.chords.length ? roots.indexOf(plan.chords[endBar].match(/^[A-G](?:b|#)?/)![0]) : -1;
+        assert.ok(
+          previousRoot === (tonic + 7) % 12 && [tonic, (tonic + 9) % 12].includes(root)
+          || previousRoot === (tonic + 5) % 12 && root === tonic
+          || root === (tonic + 7) % 12
+          || endBar < plan.chords.length && root === (nextRoot + 7) % 12,
+          `${genre} phrase boundary is not harmonic`,
+        );
         rootEndings += Number(last.some(note => note.pitch % 12 === root));
         semitoneEndings += Number(last.some(note => Math.abs(note.pitch - previous.pitch) === 1));
         connections += Number(end - Math.max(...leads.map(note => note.beat + note.duration)) < .1);
         shapes.add(`${(lastBeat - previous.beat).toFixed(2)}:${last.map(note => note.pitch - previous.pitch).join(",")}`);
         phrases++;
+        startBar = endBar;
       }
       const finalBeat = Math.max(...song.notes.filter(note => plan.instruments.lead.includes(note.instrument)).map(note => note.beat));
       assert.ok(song.notes.some(note => plan.instruments.lead.includes(note.instrument) && note.beat === finalBeat && note.pitch % 12 === tonic));
@@ -198,18 +213,22 @@ test("melodies occasionally enter offbeat and sustain across a strong beat", () 
   }
 });
 
-test("melodies form four-bar periods and either close or connect at phrase boundaries", () => {
+test("melodies follow variable two-to-eight-bar harmonic phrases", () => {
   for (const genre of genres) {
     const plan = createTrackPlan(`phrasing-${genre}`, genre);
     const song = buildSong(plan);
+    assert.ok(plan.phraseEnds.some((end, index) => end - (plan.phraseEnds[index - 1] ?? 0) !== 4), `${genre} stayed on four-bar phrases`);
     const melody = song.notes.filter(note => plan.genre === "bigBand" ? plan.instruments.lead.includes(note.instrument) : note.instrument === plan.instruments.lead[0]);
-    for (let start = 0; start < plan.chords.length * 4; start += 16) {
-      const phrase = melody.filter(note => note.beat >= start && note.beat < start + 16);
+    let startBar = 0;
+    for (const endBar of plan.phraseEnds) {
+      const start = startBar * 4, end = endBar * 4;
+      const phrase = melody.filter(note => note.beat >= start && note.beat < end);
       assert.ok(phrase.some(note => Math.abs(note.beat - start) < 1e-9), `${genre} enters late in a phrase`);
-      assert.ok([0, 4, 8, 12].every(bar => phrase.some(note => note.beat >= start + bar && note.beat < start + bar + 4)), `${genre} leaves a bar empty`);
-      const boundary = start + 16 - Math.max(...phrase.map(note => note.beat + note.duration));
+      assert.ok(Array.from({ length: endBar - startBar }, (_, bar) => start + bar * 4).every(bar => phrase.some(note => note.beat >= bar && note.beat < bar + 4)), `${genre} leaves a bar empty`);
+      const boundary = end - Math.max(...phrase.map(note => note.beat + note.duration));
       assert.ok(boundary >= .5 || boundary <= .1, `${genre} neither closes nor connects a phrase`);
-      for (let index = 1; index < phrase.length; index++) assert.ok(phrase[index].beat - (phrase[index - 1].beat + phrase[index - 1].duration) <= .8 + 1e-9, `${genre} has an arbitrary long rest`);
+      for (let index = 1; index < phrase.length; index++) assert.ok(phrase[index].beat - (phrase[index - 1].beat + phrase[index - 1].duration) <= 1 + 1e-9, `${genre} has an arbitrary long rest`);
+      startBar = endBar;
     }
   }
 });
