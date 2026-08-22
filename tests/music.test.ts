@@ -85,9 +85,9 @@ test("instrumentation varies by song and expands big band and classical ensemble
   }
 });
 
-test("ensemble lead voices share phrasing without harmonic collisions", () => {
-  for (const genre of ["bigBand", "classical"] as const) for (let seed = 0; seed < 6; seed++) {
-    const plan = createTrackPlan(`${genre}-voicing-${seed}`, genre);
+test("classical leads harmonize while big band leads trade phrases", () => {
+  for (let seed = 0; seed < 6; seed++) {
+    const plan = createTrackPlan(`classical-voicing-${seed}`, "classical");
     const song = buildSong(plan);
     const [lead, harmony] = plan.instruments.lead;
     const primary = song.notes.filter(note => note.instrument === lead);
@@ -95,9 +95,46 @@ test("ensemble lead voices share phrasing without harmonic collisions", () => {
     assert.equal(secondary.length, primary.length);
     primary.forEach(note => {
       const partner = secondary.find(other => other.beat === note.beat && other.duration === note.duration);
-      assert.ok(partner, `${genre} lead rhythm diverged at ${note.beat}`);
-      assert.ok([3, 4, 5, 7, 8, 9].includes(Math.abs(partner.pitch - note.pitch) % 12), `${genre} lead voices clash at ${note.beat}`);
+      assert.ok(partner, `classical lead rhythm diverged at ${note.beat}`);
+      assert.ok([3, 4, 5, 7, 8, 9].includes(Math.abs(partner.pitch - note.pitch) % 12), `classical lead voices clash at ${note.beat}`);
     });
+  }
+  for (let seed = 0; seed < 6; seed++) {
+    const plan = createTrackPlan(`bigband-response-${seed}`, "bigBand");
+    const song = buildSong(plan);
+    const [first, second] = plan.instruments.lead.map(instrument => song.notes.filter(note => note.instrument === instrument));
+    const overlaps = first.filter(note => second.some(other => other.beat === note.beat));
+    assert.ok(first.length && second.length);
+    assert.ok(overlaps.length / Math.min(first.length, second.length) < .25, "big band leads harmonize too often");
+    assert.ok(overlaps.every(note => second.some(other => other.beat === note.beat && [3, 4, 5, 7, 8, 9].includes(Math.abs(other.pitch - note.pitch) % 12))), "big band cadence clashes");
+  }
+});
+
+test("phrases and sections cadence, with controlled chromatic turns in jazz and pop", () => {
+  const roots = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+  for (const genre of genres) {
+    const plan = createTrackPlan(`cadence-${genre}`, genre);
+    const tonic = roots.indexOf(plan.key.replace("♭", "b").replace("♯", "#"));
+    plan.sections.forEach(section => {
+      const tail = plan.chords.slice(section.startBar + section.bars - 3, section.startBar + section.bars).map(chord => roots.indexOf(chord.match(/^[A-G](?:b|#)?/)![0]));
+      assert.ok(tail.includes((tonic + 7) % 12));
+      assert.equal(tail.at(-1), tonic);
+    });
+    const song = buildSong(plan);
+    for (let startBar = 0; startBar < plan.chords.length; startBar += 4) {
+      const end = (startBar + 4) * 4;
+      const leads = song.notes.filter(note => plan.instruments.lead.includes(note.instrument) && note.beat >= startBar * 4 && note.beat < end);
+      const lastBeat = Math.max(...leads.map(note => note.beat));
+      const root = roots.indexOf(plan.chords[startBar + 3].match(/^[A-G](?:b|#)?/)![0]);
+      assert.ok(end - Math.max(...leads.map(note => note.beat + note.duration)) >= .5);
+      assert.ok(leads.some(note => note.beat === lastBeat && note.pitch % 12 === root));
+    }
+  }
+  for (const genre of ["jazz", "pop"] as const) {
+    const plan = createTrackPlan(`chromatic-${genre}`, genre);
+    const tonic = roots.indexOf(plan.key.replace("♭", "b").replace("♯", "#"));
+    const diatonic = new Set([0, 2, 4, 5, 7, 9, 11].map(step => (tonic + step) % 12));
+    assert.ok(plan.chords.some(chord => !diatonic.has(roots.indexOf(chord.match(/^[A-G](?:b|#)?/)![0]))));
   }
 });
 
@@ -118,11 +155,11 @@ test("melodies form four-bar periods and rest only at phrase boundaries", () => 
   for (const genre of genres) {
     const plan = createTrackPlan(`phrasing-${genre}`, genre);
     const song = buildSong(plan);
-    const melody = song.notes.filter(note => note.instrument === plan.instruments.lead[0]);
+    const melody = song.notes.filter(note => plan.genre === "bigBand" ? plan.instruments.lead.includes(note.instrument) : note.instrument === plan.instruments.lead[0]);
     for (let start = 0; start < plan.chords.length * 4; start += 16) {
       const phrase = melody.filter(note => note.beat >= start && note.beat < start + 16);
       assert.ok([0, 4, 8, 12].every(bar => phrase.some(note => Math.abs(note.beat - start - bar) < 1e-9)), `${genre} enters late in a phrase`);
-      assert.ok(Math.abs(Math.max(...phrase.map(note => note.beat + note.duration)) - (start + 15.5)) < 1e-9, `${genre} lacks an eighth-note phrase boundary`);
+      assert.ok(start + 16 - Math.max(...phrase.map(note => note.beat + note.duration)) >= .5, `${genre} lacks a phrase boundary`);
       for (let index = 1; index < phrase.length; index++) assert.ok(phrase[index].beat - (phrase[index - 1].beat + phrase[index - 1].duration) <= .5 + 1e-9, `${genre} has an arbitrary long rest`);
     }
   }
