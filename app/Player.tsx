@@ -57,7 +57,8 @@ function Visualizer({ song, active }: { song?: Song; active: boolean }) {
 function PianoRoll({ song, elapsed, active }: { song: Song; elapsed: number; active: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const elapsedRef = useRef(elapsed);
-  useEffect(() => { elapsedRef.current = elapsed; }, [elapsed]);
+  const drawRef = useRef<() => void>(() => {});
+  useEffect(() => { elapsedRef.current = elapsed; drawRef.current(); }, [elapsed]);
   useEffect(() => {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
@@ -86,11 +87,12 @@ function PianoRoll({ song, elapsed, active }: { song: Song; elapsed: number; act
       context.fillStyle = "#f6f0e8"; context.fillRect(3 / span * width - 1, 0, 2, height);
       if (active && !reduced && !document.hidden) frame = requestAnimationFrame(draw);
     };
+    drawRef.current = draw;
     resize(); draw();
     const observer = new ResizeObserver(() => { resize(); draw(); }); observer.observe(canvas);
     const visibility = () => { cancelAnimationFrame(frame); if (!document.hidden && active && !reduced) frame = requestAnimationFrame(draw); };
     document.addEventListener("visibilitychange", visibility);
-    return () => { cancelAnimationFrame(frame); observer.disconnect(); document.removeEventListener("visibilitychange", visibility); };
+    return () => { drawRef.current = () => {}; cancelAnimationFrame(frame); observer.disconnect(); document.removeEventListener("visibilitychange", visibility); };
   }, [song, active]);
   const names = song.plan.instruments.lead.map(program => INSTRUMENT_NAMES[program]);
   return <div className="piano-roll"><div className="piano-roll-heading"><h3>リアルタイム・ピアノロール</h3><span>{names.map((name, index) => <i key={name} style={{ color: `hsl(${12 + index * 92} 86% ${index ? 67 : 62}%)` }}>{name}</i>)}</span></div><canvas ref={canvasRef} role="img" aria-label={`旋律楽器: ${names.join("、")}`} /></div>;
