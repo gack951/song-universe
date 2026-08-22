@@ -44,6 +44,15 @@ nav button.selected { color: #160d0a; border-color: var(--acid); background: var
 .form li span { margin-right: 6px; font: .58rem ui-monospace, SFMono-Regular, monospace; }
 .form li.passed { color: #b7aebb; border-color: #55485c; }
 .form li.current { color: #160d0a; border-color: var(--acid); background: var(--acid); font-weight: 800; }
+.chord-progression { margin: 0 0 20px; }
+.chord-progression > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.chord-progression strong { color: #ff9b84; font: 700 .72rem ui-monospace, SFMono-Regular, monospace; }
+.chord-progression ol { display: flex; gap: 6px; margin: 0; padding: 0 0 8px; overflow-x: auto; list-style: none; scrollbar-width: thin; }
+.chord-progression li { min-width: 68px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; color: #c4bbc8; font: 700 .78rem ui-monospace, SFMono-Regular, monospace; }
+.chord-progression li:nth-child(4n+1):not(:first-child) { margin-left: 8px; }
+.chord-progression li span { display: block; margin-bottom: 3px; color: #77707b; font-size: .55rem; }
+.chord-progression li.current { color: #160d0a; border-color: var(--acid); background: var(--acid); }
+.chord-progression li.current span { color: #572115; }
 .piano-roll { margin: 0 0 20px; }
 .piano-roll-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .piano-roll-heading span { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px 10px; }

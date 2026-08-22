@@ -126,6 +126,10 @@ function CompositionDetails({ song, elapsed, active }: { song: Song; elapsed: nu
     <ol className="form" aria-label={`現在は${formNames[plan.sections[section].name] ?? plan.sections[section].name}`}>
       {plan.sections.map((part, index) => <li key={`${part.name}-${index}`} className={index === section ? "current" : index < section ? "passed" : ""}><span>{part.startBar + 1}–{part.startBar + part.bars}</span>{formNames[part.name] ?? part.name}</li>)}
     </ol>
+    <div className="chord-progression">
+      <div><h3>コード進行</h3><strong>{currentBar}小節・{plan.chords[currentBar - 1]}</strong></div>
+      <ol aria-label="曲全体のコード進行">{plan.chords.map((chord, index) => <li key={`${index}-${chord}`} className={index === currentBar - 1 ? "current" : ""} aria-current={index === currentBar - 1 ? "step" : undefined}><span>{index + 1}</span>{chord}</li>)}</ol>
+    </div>
     <PianoRoll song={song} elapsed={elapsed} active={active} />
     <div className="detail-grid">
       <div><h3>楽器構成</h3><dl className="instruments">{instruments.map(([role, programs]) => <div key={role}><dt>{role}</dt><dd>{programs.map(program => INSTRUMENT_NAMES[program]).join("・")}</dd></div>)}</dl></div>
