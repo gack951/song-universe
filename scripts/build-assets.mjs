@@ -6,9 +6,9 @@ const sourcePath = process.argv[2];
 if (!sourcePath) throw new Error("Usage: node scripts/build-assets.mjs GeneralUser-GS.sf2");
 
 const programs = {
-  "jazz-bigband": new Set([0, 4, 11, 16, 32, 56, 57, 60, 64, 65, 66, 67]),
-  "funk-rock-pop": new Set([4, 5, 16, 27, 29, 30, 33, 34, 36, 80, 88]),
-  classical: new Set([0, 40, 41, 42, 43, 46, 47, 56, 60, 68, 70, 71, 73]),
+  "jazz-bigband": new Set([0, 4, 11, 16, 26, 32, 33, 34, 56, 57, 60, 64, 65, 66, 67]),
+  "funk-rock-pop": new Set([0, 4, 5, 11, 16, 27, 28, 29, 30, 32, 33, 34, 36, 37, 38, 39, 48, 52, 73, 80, 81, 88, 89]),
+  classical: new Set([0, 6, 40, 41, 42, 43, 46, 48, 60, 68, 70, 71, 73]),
 };
 
 const source = SoundBankLoader.fromArrayBuffer((await readFile(sourcePath)).buffer);

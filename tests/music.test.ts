@@ -12,7 +12,11 @@ test("plans are deterministic and stay inside every genre contract", () => {
     assert.ok(first.bpm >= GENRES[genre].bpm[0] && first.bpm <= GENRES[genre].bpm[1]);
     assert.deepEqual(first.form, GENRES[genre].form);
     assert.ok(first.chords.length > 20);
-    assert.equal(GENRES[genre].instruments.length, 4);
+    assert.ok(Object.values(GENRES[genre].instruments).every(pool => pool.length >= 2));
+    assert.equal(first.instruments.lead.length, GENRES[genre].layers.lead);
+    assert.equal(first.instruments.harmony.length, GENRES[genre].layers.harmony);
+    assert.equal(first.instruments.color.length, GENRES[genre].layers.color);
+    assert.equal(new Set([...first.instruments.lead, ...first.instruments.harmony, first.instruments.bass, ...first.instruments.color]).size, GENRES[genre].layers.lead + GENRES[genre].layers.harmony + GENRES[genre].layers.color + 1);
   }
 });
 
@@ -21,10 +25,7 @@ test("songs contain theme, harmony, bass, rhythm and a bounded cadence", () => {
     const plan = createTrackPlan(`song-${genre}`, genre);
     const theme = ruleTheme(plan);
     const song = buildSong(plan, theme);
-    const [lead, harmony, bass] = GENRES[genre].instruments;
-    assert.ok(song.notes.some(note => note.instrument === lead));
-    assert.ok(song.notes.some(note => note.instrument === harmony));
-    assert.ok(song.notes.some(note => note.instrument === bass));
+    for (const instrument of [...plan.instruments.lead, ...plan.instruments.harmony, plan.instruments.bass, ...plan.instruments.color]) assert.ok(song.notes.some(note => note.instrument === instrument));
     assert.ok(song.notes.some(note => genre === "classical" ? note.beat % 1 === .5 : note.instrument === 128));
     assert.ok(song.notes.some(note => note.beat >= plan.chords.length * 4 - 4));
     const keys = new Set<string>();
@@ -36,6 +37,19 @@ test("songs contain theme, harmony, bass, rhythm and a bounded cadence", () => {
       const key = `${note.beat.toFixed(3)}:${note.pitch}:${note.instrument}`;
       assert.ok(!keys.has(key), `duplicate ${key}`); keys.add(key);
     }
+  }
+});
+
+test("instrumentation varies by song and expands big band and classical ensembles", () => {
+  for (const genre of genres) {
+    const arrangements = new Set(Array.from({ length: 16 }, (_, index) => JSON.stringify(createTrackPlan(`${genre}-${index}`, genre).instruments)));
+    assert.ok(arrangements.size > 1, `${genre} instrumentation did not vary`);
+  }
+  for (const genre of ["bigBand", "classical"] as const) {
+    const plan = createTrackPlan(`expanded-${genre}`, genre);
+    const notes = buildSong(plan).notes;
+    const simultaneous = Math.max(...notes.map(({ beat }) => new Set(notes.filter(note => note.beat <= beat && note.beat + note.duration > beat).map(note => note.instrument)).size));
+    assert.ok(simultaneous >= (genre === "bigBand" ? 7 : 6));
   }
 });
 

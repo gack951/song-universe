@@ -2,6 +2,8 @@ import type { NoteEvent, Song } from "./music";
 
 type Synth = import("spessasynth_lib").WorkletSynthesizer;
 
+export const soundfontUrl = (pack: string) => `/soundfonts/${pack}.sf3?v=2`;
+
 export class AudioEngine {
   context?: AudioContext;
   synth?: Synth;
@@ -20,7 +22,7 @@ export class AudioEngine {
       await this.synth.isReady;
     }
     if (this.pack !== pack) {
-      const response = await caches.match(`/soundfonts/${pack}.sf3`) ?? await fetch(`/soundfonts/${pack}.sf3`);
+      const response = await caches.match(soundfontUrl(pack)) ?? await fetch(soundfontUrl(pack));
       if (!response.ok) throw new Error("音源の取得に失敗しました。");
       const previous = this.pack;
       await this.synth.soundBankManager.addSoundBank(await response.arrayBuffer(), pack);
