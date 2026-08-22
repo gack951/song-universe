@@ -1,9 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { createOggEncoder } from "wasm-media-encoders";
 import { BasicSoundBank, SoundBankLoader } from "spessasynth_core";
 
 const sourcePath = process.argv[2];
-if (!sourcePath) throw new Error("Usage: node scripts/build-assets.mjs GeneralUser-GS.sf2");
+if (!sourcePath) throw new Error("Usage: node scripts/build-assets.mjs MuseScore_General.sf3");
 
 const programs = {
   "jazz-bigband": new Set([0, 4, 11, 16, 26, 32, 33, 34, 56, 57, 60, 64, 65, 66, 67]),
@@ -14,23 +13,12 @@ const programs = {
 const source = SoundBankLoader.fromArrayBuffer((await readFile(sourcePath)).buffer);
 await mkdir("public/soundfonts", { recursive: true });
 
-async function encodeVorbis(audioData, sampleRate) {
-  const encoder = await createOggEncoder();
-  encoder.configure({ channels: 1, sampleRate, vbrQuality: 2 });
-  const first = Uint8Array.from(encoder.encode([audioData]));
-  const last = Uint8Array.from(encoder.finalize());
-  const result = new Uint8Array(first.length + last.length);
-  result.set(first);
-  result.set(last, first.length);
-  return result;
-}
-
 for (const [name, allowed] of Object.entries(programs)) {
   const bank = BasicSoundBank.copyFrom(source);
   for (const preset of [...bank.presets]) {
-    if (!preset.isDrum && !allowed.has(preset.program)) bank.deletePreset(preset);
+    const standard = preset.bankMSB === 0 && preset.bankLSB === 0;
+    if (!standard || (preset.isDrum ? preset.program !== 0 : !allowed.has(preset.program))) bank.deletePreset(preset);
   }
   bank.removeUnusedElements();
-  await bank.setSampleFormat({ format: "compressed", compressionFunction: encodeVorbis });
   await writeFile(`public/soundfonts/${name}.sf3`, new Uint8Array(bank.writeSF2()));
 }

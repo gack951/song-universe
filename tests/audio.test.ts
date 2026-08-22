@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AudioEngine } from "../app/audio.ts";
+import { AudioEngine, effectSends } from "../app/audio.ts";
+
+test("reverb and chorus stay restrained on the rhythm section", () => {
+  assert.deepEqual(effectSends(56), [48, 20]);
+  assert.deepEqual(effectSends(33), [24, 8]);
+  assert.deepEqual(effectSends(128), [16, 0]);
+});
 
 test("manual stop destroys the worklet so queued notes cannot leak into the next song", () => {
   const engine = new AudioEngine();

@@ -17,7 +17,8 @@ npm test
 - Sites/vinext + React + TypeScript、単一ルート、バックエンド・認証・永続化なし
 - `chord_pitches_improv` と `drum_kit_rnn` をセルフホストし、TensorFlow.js WebGLで端末内推論
 - MIDI互換の演奏イベントを生成し、SpessaSynthのAudioWorkletで合成
-- GeneralUser GS 2.0.3を実証用に3つのSF3サブセットへ分割
+- MuseScore General 0.2を実証用に3つのSF3サブセットへ分割
+- 全パートは中央定位のまま、MIDI CCのリバーブとコーラスを使用
 - Cache Storage、Web App Manifest、Media Session、Canvasビジュアル／リアルタイム・ピアノロール
 
 ## 自動生成方針
@@ -27,14 +28,13 @@ npm test
 - ジャズは拍位置・フレーズ・コードを同時に扱い、弱拍の外音だけを次の強拍で解決する（[Jazz Transformer](https://archives.ismir.net/ismir2020/paper/000339.pdf)、[Frielerほか 2022](https://transactions.ismir.net/articles/10.5334/tismir.87)）。
 - 複数主旋律は独立生成せず、同一フレーズからコード構成音の3度・4度・5度・6度で派生する。
 
-モデルは `public/models/`、音源は `public/soundfonts/`、ライセンス全文は `public/licenses/` にあります。音源パックを再生成する場合はGeneralUser GSのSF2を取得し、`npm run assets -- /path/to/GeneralUser-GS.sf2` を実行してください。
+モデルは `public/models/`、音源は `public/soundfonts/`、ライセンス全文は `public/licenses/` にあります。音源パックを再生成する場合はMuseScore GeneralのSF3を取得し、`npm run assets -- /path/to/MuseScore_General.sf3` を実行してください。
 
 ## 使用物とライセンス
 
 - Magenta.js / TensorFlow.js: Apache-2.0
 - SpessaSynth: Apache-2.0
-- GeneralUser GS: 独自ライセンス v2.0（変更・再配布可。サンプル由来に関する注意書きを含む）
-- wasm-media-encoders: MIT（SF3作成時のみ）
+- MuseScore General 0.2: MIT（FluidR3Mono等の帰属表示を同梱）
 
 この実証版は商用公開の法務確認を行っていません。Magenta.jsの古い依存関係にはnpm auditの既知警告が残りますが、外部入力やアップロードは扱わず、同梱した固定チェックポイントだけを読みます。
 

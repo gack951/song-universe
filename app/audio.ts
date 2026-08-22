@@ -2,7 +2,10 @@ import type { NoteEvent, Song } from "./music";
 
 type Synth = import("spessasynth_lib").WorkletSynthesizer;
 
-export const soundfontUrl = (pack: string) => `/soundfonts/${pack}.sf3?v=2`;
+export const soundfontUrl = (pack: string) => `/soundfonts/${pack}.sf3?v=3`;
+
+export const effectSends = (instrument: number): readonly [number, number] =>
+  instrument === 128 ? [16, 0] : instrument >= 32 && instrument <= 39 ? [24, 8] : [48, 20];
 
 export class AudioEngine {
   context?: AudioContext;
@@ -41,11 +44,14 @@ export class AudioEngine {
     const channels = new Map<number, number>();
     let nextChannel = 0;
     for (const instrument of new Set(notes.map(note => note.instrument))) {
-      if (instrument === 128) { channels.set(instrument, 9); this.synth.midiChannels[9].setDrums(true); continue; }
-      if (nextChannel === 9) nextChannel++;
-      channels.set(instrument, nextChannel);
-      this.synth.programChange(nextChannel, instrument, { time: start });
-      nextChannel++;
+      const channel = instrument === 128 ? 9 : nextChannel === 9 ? ++nextChannel : nextChannel;
+      channels.set(instrument, channel);
+      if (instrument === 128) this.synth.midiChannels[channel].setDrums(true);
+      else { this.synth.programChange(channel, instrument, { time: start }); nextChannel++; }
+      const [reverb, chorus] = effectSends(instrument);
+      this.synth.controllerChange(channel, 10 as Parameters<Synth["controllerChange"]>[1], 64, { time: start });
+      this.synth.controllerChange(channel, 91 as Parameters<Synth["controllerChange"]>[1], reverb, { time: start });
+      this.synth.controllerChange(channel, 93 as Parameters<Synth["controllerChange"]>[1], chorus, { time: start });
     }
     const secondsPerBeat = 60 / bpm;
     for (const note of notes) {
