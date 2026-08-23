@@ -19,5 +19,6 @@ test("service worker never pins an old application shell", async () => {
   const source = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
   assert.match(source, /request\.mode === "navigate"/);
   assert.match(source, /fetch\(event\.request\).*catch\(\(\) => caches\.match\("\/"\)/);
+  assert.match(source, /pathname\.startsWith\("\/soundfonts\/"\)\) return/);
   assert.doesNotMatch(source.match(/const SHELL = \[(.*?)\]/)?.[1] ?? "", /"\/"/);
 });

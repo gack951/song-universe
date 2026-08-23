@@ -4,6 +4,7 @@ self.addEventListener("install", event => event.waitUntil(caches.open(CACHE).the
 self.addEventListener("activate", event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith("song-universe-shell-") && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET" || new URL(event.request.url).origin !== location.origin) return;
+  if (new URL(event.request.url).pathname.startsWith("/soundfonts/")) return;
   if (event.request.mode === "navigate") {
     event.respondWith(fetch(event.request).then(response => { if (response.ok) event.waitUntil(caches.open(CACHE).then(cache => cache.put("/", response.clone()))); return response; }).catch(() => caches.match("/").then(response => response ?? Response.error())));
     return;

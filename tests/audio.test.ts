@@ -1,16 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AudioEngine, effectSends, joinBuffers, soundfontUrls, validateSoundfontFile } from "../app/audio.ts";
+import { AudioEngine, effectSends, joinBuffers, soundfontUrls } from "../app/audio.ts";
 
 test("split standard soundfonts reassemble in order", () => {
   assert.deepEqual(soundfontUrls("jazz-bigband"), ["/soundfonts/jazz-bigband.sf3.0?v=4", "/soundfonts/jazz-bigband.sf3.1?v=4", "/soundfonts/jazz-bigband.sf3.2?v=4"]);
   assert.deepEqual([...new Uint8Array(joinBuffers([Uint8Array.of(1, 2).buffer, Uint8Array.of(3).buffer]))], [1, 2, 3]);
 });
 
-test("local rich soundfonts are bounded and type checked", () => {
-  assert.doesNotThrow(() => validateSoundfontFile({ name: "studio.sf3", size: 200_000_000 }));
-  assert.throws(() => validateSoundfontFile({ name: "song.mp3", size: 2_000_000 }), /SF2 \/ SF3/);
-  assert.throws(() => validateSoundfontFile({ name: "huge.sf2", size: 513 * 1024 * 1024 }), /512MB/);
+test("rich soundfont is fetched as cacheable Pages-sized chunks", () => {
+  assert.deepEqual(soundfontUrls("jazz-bigband", "rich"), Array.from({ length: 11 }, (_, index) => `/soundfonts/rich.sf3.${String(index).padStart(2, "0")}?v=1`));
 });
 
 test("reverb and chorus stay restrained on the rhythm section", () => {

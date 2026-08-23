@@ -2,17 +2,29 @@ import type { NoteEvent, Song } from "./music";
 
 type Synth = import("spessasynth_lib").WorkletSynthesizer;
 
-export const soundfontUrls = (pack: string) => Array.from({ length: 3 }, (_, index) => `/soundfonts/${pack}.sf3.${index}?v=4`);
+export type SoundfontQuality = "standard" | "rich";
+
+export const soundfontUrls = (pack: string, quality: SoundfontQuality = "standard") => quality === "rich"
+  ? Array.from({ length: 11 }, (_, index) => `/soundfonts/rich.sf3.${String(index).padStart(2, "0")}?v=1`)
+  : Array.from({ length: 3 }, (_, index) => `/soundfonts/${pack}.sf3.${index}?v=4`);
+
+async function soundfontResponse(url: string) {
+  const cached = await caches.match(url);
+  if (cached) return cached;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("音源の取得に失敗しました。");
+  await (await caches.open("song-universe-soundfonts-v1")).put(url, response.clone());
+  return response;
+}
+
+export const cacheSoundfont = async (pack: string, quality: SoundfontQuality = "standard") =>
+  void await Promise.all(soundfontUrls(pack, quality).map(soundfontResponse));
 
 export const joinBuffers = (buffers: ArrayBuffer[]) => {
   const joined = new Uint8Array(buffers.reduce((size, buffer) => size + buffer.byteLength, 0));
   let offset = 0;
   for (const buffer of buffers) { joined.set(new Uint8Array(buffer), offset); offset += buffer.byteLength; }
   return joined.buffer;
-};
-
-export const validateSoundfontFile = (file: Pick<File, "name" | "size">) => {
-  if (!/\.(?:sf2|sf3)$/i.test(file.name) || !file.size || file.size > 512 * 1024 * 1024) throw new Error("512MB以下のSF2 / SF3音源を選択してください。");
 };
 
 export const effectSends = (instrument: number): readonly [number, number] =>
@@ -29,7 +41,7 @@ export class AudioEngine {
 
   get position() { return this.context && this.startedAt !== undefined ? Math.max(0, Math.min(this.duration, this.context.currentTime - this.startedAt)) : 0; }
 
-  async prepare(pack: string, file?: File) {
+  async prepare(pack: string, quality: SoundfontQuality = "standard") {
     this.context ??= new AudioContext({ latencyHint: "playback" });
     await this.context.resume();
     if (!this.synth) {
@@ -39,13 +51,11 @@ export class AudioEngine {
       this.synth.connect(this.context.destination);
       await this.synth.isReady;
     }
-    const id = file ? `local:${file.name}:${file.size}:${file.lastModified}` : pack;
+    const id = quality === "rich" ? "rich-v1" : pack;
     if (this.pack !== id) {
-      if (file) validateSoundfontFile(file);
-      const responses = file ? undefined : await Promise.all(soundfontUrls(pack).map(async url => await caches.match(url) ?? fetch(url)));
-      if (responses?.some(response => !response.ok)) throw new Error("音源の取得に失敗しました。");
+      const responses = await Promise.all(soundfontUrls(pack, quality).map(soundfontResponse));
       const previous = this.pack;
-      await this.synth.soundBankManager.addSoundBank(file ? await file.arrayBuffer() : joinBuffers(await Promise.all(responses!.map(response => response.arrayBuffer()))), id);
+      await this.synth.soundBankManager.addSoundBank(joinBuffers(await Promise.all(responses.map(response => response.arrayBuffer()))), id);
       this.synth.soundBankManager.priorityOrder = [id, ...this.synth.soundBankManager.priorityOrder.filter(item => item !== id)];
       if (previous) await this.synth.soundBankManager.deleteSoundBank(previous);
       this.pack = id;

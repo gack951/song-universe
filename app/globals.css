@@ -44,12 +44,10 @@ h1 { margin: 0; font-size: clamp(1.2rem, 5vw, 1.7rem); line-height: 1; letter-sp
 main > .pickers { margin-bottom: 0; }
 nav > span, .soundfont > span { display: block; margin-bottom: 7px; color: var(--muted); font-size: .61rem; }
 nav div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
-nav button, .soundfont button, .soundfont label { min-height: 42px; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: #121016; cursor: pointer; text-align: center; font-size: .7rem; }
+nav button, .soundfont button { min-height: 42px; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: #121016; cursor: pointer; text-align: center; font-size: .7rem; }
 nav button.selected, .soundfont .selected { color: #160d0a; border-color: var(--acid); background: var(--acid); font-weight: 800; }
-.soundfont { display: grid; grid-template-columns: 1fr 1.5fr; gap: 5px; }
+.soundfont { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .soundfont > span, .soundfont small { grid-column: 1 / -1; }
-.soundfont label { display: grid; place-items: center; }
-.soundfont input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .soundfont small { overflow: hidden; color: var(--muted); font-size: .62rem; text-overflow: ellipsis; white-space: nowrap; }
 .piano-roll { margin: 0 0 16px; }
 .piano-roll-heading { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 4px 10px; }

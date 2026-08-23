@@ -1,17 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AudioEngine, soundfontUrls } from "./audio";
+import { AudioEngine, cacheSoundfont, type SoundfontQuality } from "./audio";
 import { GENRES, INSTRUMENT_NAMES, aiParts, buildSong, createTrackPlan, eighthNoteMilliseconds, initializeAI, newSeed, tooSimilar, type Genre, type PlaybackState, type Song } from "./music";
 
 const engine = new AudioEngine();
 const genreOrder = Object.keys(GENRES) as Genre[];
 const formNames: Record<string, string> = { intro: "イントロ", head: "テーマ", solo: "ソロ", solos: "ソロ", "shout chorus": "シャウトコーラス", coda: "コーダ", A: "A", B: "B", break: "ブレイク", outro: "アウトロ", verse: "ヴァース", chorus: "コーラス", bridge: "ブリッジ", prechorus: "プレコーラス", "final chorus": "最終コーラス", exposition: "提示部", development: "展開部", recapitulation: "再現部" };
-
-async function cacheAsset(url: string) {
-  const cache = await caches.open("song-universe-assets-v1");
-  if (!await cache.match(url)) await cache.add(url);
-}
 
 function Visualizer({ song, active }: { song?: Song; active: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -109,14 +104,14 @@ function formatTime(seconds: number) {
   return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
 }
 
-function GenrePicker({ genre, onChoose, soundfont, onSoundfont }: { genre: Genre; onChoose: (genre: Genre) => void; soundfont?: File; onSoundfont: (file?: File) => void }) {
+function GenrePicker({ genre, onChoose, soundfont, onSoundfont }: { genre: Genre; onChoose: (genre: Genre) => void; soundfont: SoundfontQuality | "downloading"; onSoundfont: (quality: SoundfontQuality) => void }) {
   return <div className="pickers">
     <nav aria-label="次の曲のジャンル"><span>次の曲のジャンル</span><div>{genreOrder.map(item => <button key={item} className={genre === item ? "selected" : ""} onClick={() => onChoose(item)} aria-pressed={genre === item}>{GENRES[item].label}</button>)}</div></nav>
-    <div className="soundfont" aria-label="再生音源"><span>音源</span><button className={!soundfont ? "selected" : ""} onClick={() => onSoundfont()}>標準</button><label className={soundfont ? "selected" : ""}>リッチ音源を選択<input type="file" accept=".sf2,.sf3" onChange={event => { const file = event.currentTarget.files?.[0]; if (file) onSoundfont(file); event.currentTarget.value = ""; }} /></label>{soundfont ? <small title={soundfont.name}>{soundfont.name}・{Math.ceil(soundfont.size / 1024 / 1024)}MB</small> : null}</div>
+    <div className="soundfont" aria-label="再生音源"><span>音源</span><button className={soundfont === "standard" ? "selected" : ""} disabled={soundfont === "downloading"} onClick={() => onSoundfont("standard")}>標準</button><button className={soundfont === "rich" ? "selected" : ""} disabled={soundfont === "downloading"} onClick={() => onSoundfont("rich")}>{soundfont === "downloading" ? "ダウンロード中…" : "リッチ音源"}</button><small>{soundfont === "rich" ? "端末にキャッシュ済み" : "初回選択時のみ約82MBをダウンロード"}</small></div>
   </div>;
 }
 
-function CompositionDetails({ song, elapsed, active, genre, onChooseGenre, soundfont, onSoundfont }: { song: Song; elapsed: number; active: boolean; genre: Genre; onChooseGenre: (genre: Genre) => void; soundfont?: File; onSoundfont: (file?: File) => void }) {
+function CompositionDetails({ song, elapsed, active, genre, onChooseGenre, soundfont, onSoundfont }: { song: Song; elapsed: number; active: boolean; genre: Genre; onChooseGenre: (genre: Genre) => void; soundfont: SoundfontQuality | "downloading"; onSoundfont: (quality: SoundfontQuality) => void }) {
   const { plan } = song;
   const totalBars = plan.chords.length;
   const currentBar = Math.min(totalBars, Math.floor(elapsed * plan.bpm / 240) + 1);
@@ -151,8 +146,8 @@ export default function Player() {
   const queue = useRef<Song[]>([]);
   const history = useRef<string[]>([]);
   const desiredGenre = useRef<Genre>(genre);
-  const soundfont = useRef<File>();
-  const [soundfontFile, setSoundfontFile] = useState<File>();
+  const soundfont = useRef<SoundfontQuality>("standard");
+  const [soundfontChoice, setSoundfontChoice] = useState<SoundfontQuality | "downloading">("standard");
   const generation = useRef(0);
   const currentRef = useRef<Song | undefined>(undefined);
   const started = useRef(false);
@@ -186,7 +181,7 @@ export default function Player() {
     try {
       if (!("AudioWorkletNode" in window)) throw new Error("AudioWorkletを利用できません。この端末は対象外です。");
       await initializeAI((value, label) => { setProgress(value); setProgressLabel(label); });
-      await Promise.all(soundfontUrls(GENRES[desiredGenre.current].pack).map(cacheAsset));
+      await cacheSoundfont(GENRES[desiredGenre.current].pack);
       setProgress(90); setProgressLabel("3曲を先読み中");
       await fillQueue(desiredGenre.current);
       setProgress(100); setProgressLabel("準備完了"); setState("paused");
@@ -259,15 +254,19 @@ export default function Player() {
 
   const chooseGenre = useCallback((next: Genre) => {
     setGenre(next); desiredGenre.current = next;
-    if (!soundfont.current) void Promise.all(soundfontUrls(GENRES[next].pack).map(cacheAsset));
+    if (soundfont.current === "standard") void cacheSoundfont(GENRES[next].pack);
     if (started.current && queue.current[0]) void fillQueue(next, true); else void fillQueue(next);
   }, [fillQueue]);
 
-  const chooseSoundfont = useCallback(async (file?: File) => {
-    soundfont.current = file; setSoundfontFile(file); setError("");
-    if (!started.current || !currentRef.current) return;
-    try { engine.stop(true); await playSong(currentRef.current); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "音源を読み込めませんでした。"); setState("error"); }
+  const chooseSoundfont = useCallback(async (quality: SoundfontQuality) => {
+    if (quality === soundfont.current) return;
+    const previous = soundfont.current;
+    setError("");
+    try {
+      if (quality === "rich") { setSoundfontChoice("downloading"); await cacheSoundfont(GENRES[desiredGenre.current].pack, quality); }
+      soundfont.current = quality; setSoundfontChoice(quality);
+      if (started.current && currentRef.current) { engine.stop(true); await playSong(currentRef.current); }
+    } catch (cause) { soundfont.current = previous; setSoundfontChoice(previous); setError(cause instanceof Error ? cause.message : "音源を読み込めませんでした。"); }
   }, [playSong]);
 
   useEffect(() => {
@@ -313,6 +312,6 @@ export default function Player() {
         <button className="next" onClick={() => void advance(true)} disabled={!current || state === "loading"} aria-label="次の曲">次へ <span>→</span></button>
       </div>
     </section>
-    {current ? <CompositionDetails song={current} elapsed={elapsed} active={playing} genre={genre} onChooseGenre={chooseGenre} soundfont={soundfontFile} onSoundfont={file => void chooseSoundfont(file)} /> : <GenrePicker genre={genre} onChoose={chooseGenre} soundfont={soundfontFile} onSoundfont={file => void chooseSoundfont(file)} />}
+    {current ? <CompositionDetails song={current} elapsed={elapsed} active={playing} genre={genre} onChooseGenre={chooseGenre} soundfont={soundfontChoice} onSoundfont={quality => void chooseSoundfont(quality)} /> : <GenrePicker genre={genre} onChoose={chooseGenre} soundfont={soundfontChoice} onSoundfont={quality => void chooseSoundfont(quality)} />}
   </main>;
 }
