@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SONG UNIVERSE — 一期一会の無限音楽",
+  title: "SONG UNIVERSE",
   description: "Pixel 9 Proのブラウザー内AIが、保存されないインストゥルメンタル音楽を生成し続けます。",
   manifest: "/manifest.webmanifest",
   themeColor: "#0b090e",

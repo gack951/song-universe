@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AudioEngine, effectSends } from "../app/audio.ts";
+import { AudioEngine, effectSends, validateSoundfontFile } from "../app/audio.ts";
+
+test("local rich soundfonts are bounded and type checked", () => {
+  assert.doesNotThrow(() => validateSoundfontFile({ name: "studio.sf3", size: 200_000_000 }));
+  assert.throws(() => validateSoundfontFile({ name: "song.mp3", size: 2_000_000 }), /SF2 \/ SF3/);
+  assert.throws(() => validateSoundfontFile({ name: "huge.sf2", size: 513 * 1024 * 1024 }), /512MB/);
+});
 
 test("reverb and chorus stay restrained on the rhythm section", () => {
   assert.deepEqual(effectSends(56), [48, 20]);

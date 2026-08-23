@@ -4,6 +4,10 @@ type Synth = import("spessasynth_lib").WorkletSynthesizer;
 
 export const soundfontUrl = (pack: string) => `/soundfonts/${pack}.sf3?v=3`;
 
+export const validateSoundfontFile = (file: Pick<File, "name" | "size">) => {
+  if (!/\.(?:sf2|sf3)$/i.test(file.name) || !file.size || file.size > 512 * 1024 * 1024) throw new Error("512MB以下のSF2 / SF3音源を選択してください。");
+};
+
 export const effectSends = (instrument: number): readonly [number, number] =>
   instrument === 128 ? [16, 0] : instrument >= 32 && instrument <= 39 ? [24, 8] : [48, 20];
 
@@ -18,7 +22,7 @@ export class AudioEngine {
 
   get position() { return this.context && this.startedAt !== undefined ? Math.max(0, Math.min(this.duration, this.context.currentTime - this.startedAt)) : 0; }
 
-  async prepare(pack: string) {
+  async prepare(pack: string, file?: File) {
     this.context ??= new AudioContext({ latencyHint: "playback" });
     await this.context.resume();
     if (!this.synth) {
@@ -28,14 +32,16 @@ export class AudioEngine {
       this.synth.connect(this.context.destination);
       await this.synth.isReady;
     }
-    if (this.pack !== pack) {
-      const response = await caches.match(soundfontUrl(pack)) ?? await fetch(soundfontUrl(pack));
-      if (!response.ok) throw new Error("音源の取得に失敗しました。");
+    const id = file ? `local:${file.name}:${file.size}:${file.lastModified}` : pack;
+    if (this.pack !== id) {
+      if (file) validateSoundfontFile(file);
+      const response = file ? undefined : await caches.match(soundfontUrl(pack)) ?? await fetch(soundfontUrl(pack));
+      if (response && !response.ok) throw new Error("音源の取得に失敗しました。");
       const previous = this.pack;
-      await this.synth.soundBankManager.addSoundBank(await response.arrayBuffer(), pack);
-      this.synth.soundBankManager.priorityOrder = [pack, ...this.synth.soundBankManager.priorityOrder.filter(id => id !== pack)];
+      await this.synth.soundBankManager.addSoundBank(file ? await file.arrayBuffer() : await response!.arrayBuffer(), id);
+      this.synth.soundBankManager.priorityOrder = [id, ...this.synth.soundBankManager.priorityOrder.filter(item => item !== id)];
       if (previous) await this.synth.soundBankManager.deleteSoundBank(previous);
-      this.pack = pack;
+      this.pack = id;
     }
   }
 

@@ -7,7 +7,6 @@ import { GENRES, INSTRUMENT_NAMES, aiParts, buildSong, createTrackPlan, eighthNo
 const engine = new AudioEngine();
 const genreOrder = Object.keys(GENRES) as Genre[];
 const formNames: Record<string, string> = { intro: "イントロ", head: "テーマ", solo: "ソロ", solos: "ソロ", "shout chorus": "シャウトコーラス", coda: "コーダ", A: "A", B: "B", break: "ブレイク", outro: "アウトロ", verse: "ヴァース", chorus: "コーラス", bridge: "ブリッジ", prechorus: "プレコーラス", "final chorus": "最終コーラス", exposition: "提示部", development: "展開部", recapitulation: "再現部" };
-const pitchNames = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
 
 async function cacheAsset(url: string) {
   const cache = await caches.open("song-universe-assets-v1");
@@ -51,7 +50,7 @@ function Visualizer({ song, active }: { song?: Song; active: boolean }) {
     document.addEventListener("visibilitychange", visibility);
     return () => { cancelAnimationFrame(frame); observer.disconnect(); document.removeEventListener("visibilitychange", visibility); };
   }, [song, active]);
-  return <canvas ref={canvasRef} className="visual" aria-label="曲の主題とリズムを表す抽象ビジュアル" />;
+  return <canvas ref={canvasRef} className="visual" aria-label="曲の主題とリズムを表す背景ビジュアル" />;
 }
 
 function PianoRoll({ song, elapsed, active }: { song: Song; elapsed: number; active: boolean }) {
@@ -75,14 +74,20 @@ function PianoRoll({ song, elapsed, active }: { song: Song; elapsed: number; act
       const start = current - 3, span = 24;
       context.clearRect(0, 0, width, height); context.fillStyle = "#0b0a0e"; context.fillRect(0, 0, width, height);
       context.strokeStyle = "#29242e"; context.lineWidth = 1;
-      for (let beat = Math.ceil(start); beat < start + span; beat++) { const x = (beat - start) / span * width; context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke(); }
-      for (let pitch = low; pitch <= high; pitch += 12) { const y = (high - pitch) / Math.max(1, high - low) * height; context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke(); }
+      for (let beat = Math.ceil(start); beat < start + span; beat++) { const x = (beat - start) / span * width; context.beginPath(); context.moveTo(x, 28); context.lineTo(x, height); context.stroke(); }
+      for (let bar = Math.max(0, Math.floor(start / 4)); bar < Math.min(song.plan.chords.length, Math.ceil((start + span) / 4)); bar++) {
+        const x = (bar * 4 - start) / span * width;
+        if (bar === Math.floor(current / 4)) { context.fillStyle = "#ff5a36"; context.fillRect(x, 0, 4 / span * width, 27); }
+        context.fillStyle = bar === Math.floor(current / 4) ? "#160d0a" : "#bfb6c3";
+        context.font = "700 11px ui-monospace, monospace"; context.fillText(song.plan.chords[bar], x + 6, 18);
+      }
+      for (let pitch = low; pitch <= high; pitch += 12) { const y = 30 + (high - pitch) / Math.max(1, high - low) * (height - 30); context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke(); }
       melody.filter(note => note.beat + note.duration >= start && note.beat <= start + span).forEach(note => {
         const voice = instruments.indexOf(note.instrument);
         context.fillStyle = `hsl(${12 + voice * 92} 86% ${voice ? 67 : 62}%)`;
-        context.fillRect((note.beat - start) / span * width, (high - note.pitch) / Math.max(1, high - low) * (height - 7), Math.max(3, note.duration / span * width), 6);
+        context.fillRect((note.beat - start) / span * width, 31 + (high - note.pitch) / Math.max(1, high - low) * (height - 38), Math.max(3, note.duration / span * width), 6);
       });
-      context.fillStyle = "#f6f0e8"; context.fillRect(3 / span * width - 1, 0, 2, height);
+      context.fillStyle = "#f6f0e8"; context.fillRect(3 / span * width - 1, 28, 2, height - 28);
     };
     const schedule = () => {
       clearInterval(timer);
@@ -95,7 +100,8 @@ function PianoRoll({ song, elapsed, active }: { song: Song; elapsed: number; act
     return () => { clearInterval(timer); observer.disconnect(); document.removeEventListener("visibilitychange", visibility); };
   }, [song, active]);
   const names = song.plan.instruments.lead.map(program => INSTRUMENT_NAMES[program]);
-  return <div className="piano-roll"><div className="piano-roll-heading"><h3>リアルタイム・ピアノロール</h3><span>{names.map((name, index) => <i key={name} style={{ color: `hsl(${12 + index * 92} 86% ${index ? 67 : 62}%)` }}>{name}</i>)}</span></div><canvas ref={canvasRef} role="img" aria-label={`旋律楽器: ${names.join("、")}`} /></div>;
+  const currentBar = Math.min(song.plan.chords.length - 1, Math.floor(elapsed * song.plan.bpm / 240));
+  return <div className="piano-roll"><div className="piano-roll-heading"><h3>リアルタイム・ピアノロール</h3><strong>{song.plan.chords[currentBar]}</strong><span>{names.map((name, index) => <i key={name} style={{ color: `hsl(${12 + index * 92} 86% ${index ? 67 : 62}%)` }}>{name}</i>)}</span></div><canvas ref={canvasRef} role="img" aria-label={`現在のコード: ${song.plan.chords[currentBar]}。旋律楽器: ${names.join("、")}`} /></div>;
 }
 
 function formatTime(seconds: number) {
@@ -103,21 +109,18 @@ function formatTime(seconds: number) {
   return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
 }
 
-function CompositionDetails({ song, elapsed, active }: { song: Song; elapsed: number; active: boolean }) {
+function GenrePicker({ genre, onChoose, soundfont, onSoundfont }: { genre: Genre; onChoose: (genre: Genre) => void; soundfont?: File; onSoundfont: (file?: File) => void }) {
+  return <div className="pickers">
+    <nav aria-label="次の曲のジャンル"><span>次の曲のジャンル</span><div>{genreOrder.map(item => <button key={item} className={genre === item ? "selected" : ""} onClick={() => onChoose(item)} aria-pressed={genre === item}>{GENRES[item].label}</button>)}</div></nav>
+    <div className="soundfont" aria-label="再生音源"><span>音源</span><button className={!soundfont ? "selected" : ""} onClick={() => onSoundfont()}>標準</button><label className={soundfont ? "selected" : ""}>リッチ音源を選択<input type="file" accept=".sf2,.sf3" onChange={event => { const file = event.currentTarget.files?.[0]; if (file) onSoundfont(file); event.currentTarget.value = ""; }} /></label>{soundfont ? <small title={soundfont.name}>{soundfont.name}・{Math.ceil(soundfont.size / 1024 / 1024)}MB</small> : null}</div>
+  </div>;
+}
+
+function CompositionDetails({ song, elapsed, active, genre, onChooseGenre, soundfont, onSoundfont }: { song: Song; elapsed: number; active: boolean; genre: Genre; onChooseGenre: (genre: Genre) => void; soundfont?: File; onSoundfont: (file?: File) => void }) {
   const { plan } = song;
   const totalBars = plan.chords.length;
   const currentBar = Math.min(totalBars, Math.floor(elapsed * plan.bpm / 240) + 1);
-  const chordsRef = useRef<HTMLOListElement>(null);
-  useEffect(() => {
-    const list = chordsRef.current;
-    const chord = list?.children[currentBar - 1] as HTMLElement | undefined;
-    if (list && chord) list.scrollTo({ left: chord.offsetLeft - (list.clientWidth - chord.clientWidth) / 2, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
-  }, [currentBar, plan.seed]);
   const section = Math.max(0, plan.sections.findIndex(part => currentBar - 1 >= part.startBar && currentBar - 1 < part.startBar + part.bars));
-  const theme = song.theme.slice(0, 24);
-  const low = Math.min(...theme.map(note => note.pitch));
-  const high = Math.max(...theme.map(note => note.pitch));
-  const range = Math.max(1, high - low);
   const instruments = [
     ["主旋律", plan.instruments.lead],
     ["和声", plan.instruments.harmony],
@@ -125,26 +128,15 @@ function CompositionDetails({ song, elapsed, active }: { song: Song; elapsed: nu
     ["色付け", plan.instruments.color],
     ...(GENRES[plan.genre].drums === "none" ? [] : [["リズム", [128]]] as [string, number[]][]),
   ] as [string, number[]][];
-  const melodyLabel = theme.map(note => `${pitchNames[note.pitch % 12]}${Math.floor(note.pitch / 12) - 1}`).join("、");
 
   return <section className="composition" aria-label="現在の曲の構成">
     <div className="composition-heading"><h3>曲の進行</h3><span>{formatTime(elapsed)} / {formatTime(plan.durationSeconds)}・{currentBar} / {totalBars}小節</span></div>
     <ol className="form" aria-label={`現在は${formNames[plan.sections[section].name] ?? plan.sections[section].name}`}>
       {plan.sections.map((part, index) => <li key={`${part.name}-${index}`} className={index === section ? "current" : index < section ? "passed" : ""}><span>{part.startBar + 1}–{part.startBar + part.bars}</span>{formNames[part.name] ?? part.name}</li>)}
     </ol>
-    <div className="chord-progression">
-      <div><h3>コード進行</h3><strong>{currentBar}小節・{plan.chords[currentBar - 1]}</strong></div>
-      <ol ref={chordsRef} aria-label="曲全体のコード進行">{plan.chords.map((chord, index) => <li key={`${index}-${chord}`} className={index === currentBar - 1 ? "current" : ""} aria-current={index === currentBar - 1 ? "step" : undefined}><span>{index + 1}</span>{chord}</li>)}</ol>
-    </div>
+    <GenrePicker genre={genre} onChoose={onChooseGenre} soundfont={soundfont} onSoundfont={onSoundfont} />
     <PianoRoll song={song} elapsed={elapsed} active={active} />
-    <div className="detail-grid">
-      <div><h3>楽器構成</h3><dl className="instruments">{instruments.map(([role, programs]) => <div key={role}><dt>{role}</dt><dd>{programs.map(program => INSTRUMENT_NAMES[program]).join("・")}</dd></div>)}</dl></div>
-      <div><h3>テーマのメロディー</h3><svg className="melody" viewBox="0 0 320 82" role="img" aria-label={`4小節のテーマ: ${melodyLabel}`}>
-        <title>4小節のテーマメロディー</title>
-        {[0, 1, 2, 3, 4].map(bar => <line key={bar} x1={bar * 80} x2={bar * 80} y1="0" y2="82" />)}
-        {theme.map((note, index) => <rect key={`${note.beat}-${note.pitch}-${index}`} x={note.beat / 16 * 312 + 4} y={68 - (note.pitch - low) / range * 58} width={Math.max(4, note.duration / 16 * 312 - 2)} height="7" rx="3.5" />)}
-      </svg></div>
-    </div>
+    <div><h3>楽器構成</h3><dl className="instruments">{instruments.map(([role, programs]) => <div key={role}><dt>{role}</dt><dd>{programs.map(program => INSTRUMENT_NAMES[program]).join("・")}</dd></div>)}</dl></div>
   </section>;
 }
 
@@ -159,6 +151,8 @@ export default function Player() {
   const queue = useRef<Song[]>([]);
   const history = useRef<string[]>([]);
   const desiredGenre = useRef<Genre>(genre);
+  const soundfont = useRef<File>();
+  const [soundfontFile, setSoundfontFile] = useState<File>();
   const generation = useRef(0);
   const currentRef = useRef<Song | undefined>(undefined);
   const started = useRef(false);
@@ -208,7 +202,7 @@ export default function Player() {
   const advanceRef = useRef<(discardScheduled?: boolean) => Promise<void>>(async () => {});
   const playSong = useCallback(async (song: Song) => {
     setState("loading");
-    await engine.prepare(GENRES[song.plan.genre].pack);
+    await engine.prepare(GENRES[song.plan.genre].pack, soundfont.current);
     engine.play(song, () => void advanceRef.current(false));
     queue.current[0] = song; currentRef.current = song; setCurrent(song); setElapsed(0); setState("playing"); updateMediaSession(song); extended.current = false;
     void (async () => { while (queue.current.length < 3) queue.current.push(await compose(desiredGenre.current)); })();
@@ -265,9 +259,16 @@ export default function Player() {
 
   const chooseGenre = useCallback((next: Genre) => {
     setGenre(next); desiredGenre.current = next;
-    void cacheAsset(soundfontUrl(GENRES[next].pack));
+    if (!soundfont.current) void cacheAsset(soundfontUrl(GENRES[next].pack));
     if (started.current && queue.current[0]) void fillQueue(next, true); else void fillQueue(next);
   }, [fillQueue]);
+
+  const chooseSoundfont = useCallback(async (file?: File) => {
+    soundfont.current = file; setSoundfontFile(file); setError("");
+    if (!started.current || !currentRef.current) return;
+    try { engine.stop(true); await playSong(currentRef.current); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "音源を読み込めませんでした。"); setState("error"); }
+  }, [playSong]);
 
   useEffect(() => {
     const timer = setTimeout(() => void prepare(), 0);
@@ -297,9 +298,9 @@ export default function Player() {
   const ready = state !== "loading" && state !== "error";
   const playing = state === "playing";
   return <main>
+    <Visualizer song={current} active={playing} />
     <header><h1>SONG UNIVERSE</h1></header>
     <section className="player" aria-live="polite">
-      <Visualizer song={current} active={playing} />
       <div className="track-copy">
         <span className={`status ${state}`}>{state === "loading" ? progressLabel : state === "buffering" ? "次の曲を生成中" : playing ? "再生中" : state === "paused" ? "一時停止" : "エラー"}</span>
         <h2>{current?.plan.title ?? (progress === 100 ? "準備ができました" : "新しい宇宙を生成中")}</h2>
@@ -312,7 +313,6 @@ export default function Player() {
         <button className="next" onClick={() => void advance(true)} disabled={!current || state === "loading"} aria-label="次の曲">次へ <span>→</span></button>
       </div>
     </section>
-    {current ? <CompositionDetails song={current} elapsed={elapsed} active={playing} /> : null}
-    <nav aria-label="次の曲のジャンル"><span>次の曲のジャンル</span><div>{genreOrder.map(item => <button key={item} className={genre === item ? "selected" : ""} onClick={() => chooseGenre(item)} aria-pressed={genre === item}>{GENRES[item].label}</button>)}</div></nav>
+    {current ? <CompositionDetails song={current} elapsed={elapsed} active={playing} genre={genre} onChooseGenre={chooseGenre} soundfont={soundfontFile} onSoundfont={file => void chooseSoundfont(file)} /> : <GenrePicker genre={genre} onChoose={chooseGenre} soundfont={soundfontFile} onSoundfont={file => void chooseSoundfont(file)} />}
   </main>;
 }
