@@ -6,7 +6,7 @@ import { GENRES, INSTRUMENT_NAMES, aiParts, buildSong, createTrackPlan, eighthNo
 
 const engine = new AudioEngine();
 const genreOrder = Object.keys(GENRES) as Genre[];
-const formNames: Record<string, string> = { intro: "イントロ", head: "テーマ", solo: "ソロ", solos: "ソロ", "shout chorus": "シャウトコーラス", coda: "コーダ", A: "A", B: "B", break: "ブレイク", outro: "アウトロ", verse: "ヴァース", chorus: "コーラス", bridge: "ブリッジ", prechorus: "プレコーラス", "final chorus": "最終コーラス", exposition: "提示部", development: "展開部", recapitulation: "再現部" };
+const formNames: Record<string, string> = { intro: "イントロ", head: "テーマ", solo: "ソロ", solos: "ソロ", "shout chorus": "シャウトコーラス", coda: "コーダ", lullaby: "子守歌", A: "A", B: "B", break: "ブレイク", outro: "アウトロ", verse: "ヴァース", chorus: "コーラス", bridge: "ブリッジ", prechorus: "プレコーラス", "final chorus": "最終コーラス", exposition: "提示部", development: "展開部", recapitulation: "再現部" };
 
 function Visualizer({ song, active }: { song?: Song; active: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);

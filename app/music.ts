@@ -1,4 +1,4 @@
-export type Genre = "jazz" | "bigBand" | "funk" | "rock" | "pop" | "classical";
+export type Genre = "jazz" | "bigBand" | "funk" | "rock" | "pop" | "classical" | "musicBox";
 
 export type TrackPlan = {
   seed: string;
@@ -59,7 +59,7 @@ type GenreConfig = {
   voicing: "shell" | "stab" | "power" | "open";
   cadence: number[];
   form: string[];
-  pack: "jazz-bigband" | "funk-rock-pop" | "classical";
+  pack: "jazz-bigband" | "funk-rock-pop" | "classical" | "music-box";
 };
 
 export const GENRES: Record<Genre, GenreConfig> = {
@@ -69,16 +69,17 @@ export const GENRES: Record<Genre, GenreConfig> = {
   rock: { label: "ロック", bpm: [104, 168], swing: .5, moods: ["疾走", "荒野", "昂揚"], moodEnergy: [1.08, .9, 1.05], instruments: { lead: [29, 30, 27, 28], harmony: [27, 29, 16, 0], bass: [33, 34, 32], color: [16, 80, 48] }, layers: { lead: 1, harmony: 1, color: 1 }, melody: { grid: .5, tension: .1, syncopation: .28, rhythms: [[0, .5, 1, 2, 2.5, 3], [0, 1, 1.5, 2, 3], [0, .5, 1.5, 2.5, 3.5]] }, energy: [.46, .62, .9, .66, .74, 1, .48], sectionWeights: [1, 2, 1, 2, 1, 1, 1], progressions: [[1, 5, 6, 4], [1, 4, 5, 1]], bass: "eighth", drums: "rock", voicing: "power", cadence: [4, 5, 1, 1], form: ["intro", "verse", "chorus", "verse", "bridge", "chorus", "outro"], pack: "funk-rock-pop" },
   pop: { label: "ポップ", bpm: [92, 132], swing: .5, moods: ["透明", "晴れ間", "切なさ"], moodEnergy: [.88, 1.05, .9], instruments: { lead: [80, 81, 4, 73], harmony: [4, 0, 48, 88], bass: [33, 38, 39], color: [88, 89, 48, 52] }, layers: { lead: 1, harmony: 1, color: 1 }, melody: { grid: .5, tension: .08, syncopation: .42, rhythms: [[0, 1, 1.5, 2.5, 3], [0, .5, 1.5, 2, 3], [0, 1, 2, 3]] }, energy: [.42, .56, .72, .94, .68, 1], sectionWeights: [1, 2, 1, 2, 1, 2], progressions: [[1, 5, 6, 4], [6, 4, 1, 5]], bass: "pulse", drums: "pop", voicing: "open", cadence: [4, 5, 1, 1], form: ["intro", "verse", "prechorus", "chorus", "bridge", "final chorus"], pack: "funk-rock-pop" },
   classical: { label: "クラシック", bpm: [66, 126], swing: .5, moods: ["端正", "荘厳", "田園"], moodEnergy: [.92, 1.06, .84], instruments: { lead: [40, 68, 71, 73], harmony: [41, 42, 48, 0], bass: [43, 42, 70], color: [46, 60, 68, 70, 6] }, layers: { lead: 2, harmony: 2, color: 1 }, melody: { grid: .5, tension: .06, syncopation: .12, rhythms: [[0, .5, 1, 2, 3], [0, 1, 2, 2.5, 3], [0, .5, 1.5, 2.5, 3]] }, energy: [.62, .9, .76, .44], sectionWeights: [2, 2, 2, 1], progressions: [[1, 4, 5, 1], [1, 6, 2, 5]], bass: "pulse", drums: "none", voicing: "open", cadence: [2, 5, 1, 1], form: ["exposition", "development", "recapitulation", "coda"], pack: "classical" },
+  musicBox: { label: "オルゴール", bpm: [52, 68], swing: .5, moods: ["まどろみ", "星明かり", "やすらぎ"], moodEnergy: [1, 1, 1], instruments: { lead: [10, 8], harmony: [0, 46], bass: [43, 42], color: [9, 11] }, layers: { lead: 1, harmony: 1, color: 0 }, melody: { grid: 1, tension: .01, syncopation: .03, rhythms: [[0, 1, 2, 3], [0, 2], [0, 1, 3]] }, energy: [.36, .36, .36, .32], sectionWeights: [1, 1, 1, 1], progressions: [[1, 4, 5, 1]], bass: "pulse", drums: "none", voicing: "open", cadence: [4, 5, 1, 1], form: ["lullaby", "lullaby", "lullaby", "lullaby"], pack: "music-box" },
 };
 
 const KEYS = ["C", "D♭", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
 const ROOTS = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 const ADJECTIVES = ["Velvet", "Amber", "Quiet", "Electric", "Silver", "Midnight", "Open", "Blue"];
 const NOUNS = ["Orbit", "Lantern", "Current", "Avenue", "Garden", "Signal", "Horizon", "Echo"];
-export const RANGES: Record<number, [number, number]> = { 0: [36, 96], 4: [36, 96], 5: [36, 96], 6: [36, 96], 11: [53, 96], 16: [36, 96], 26: [40, 88], 27: [40, 88], 28: [40, 88], 29: [40, 88], 30: [40, 88], 32: [28, 67], 33: [28, 67], 34: [28, 67], 36: [28, 67], 37: [28, 67], 38: [28, 72], 39: [28, 72], 40: [55, 103], 41: [48, 88], 42: [36, 76], 43: [28, 67], 46: [24, 103], 47: [36, 72], 48: [36, 96], 52: [48, 84], 56: [54, 82], 57: [40, 72], 60: [34, 77], 64: [46, 92], 65: [49, 80], 66: [44, 79], 67: [37, 75], 68: [58, 91], 70: [34, 75], 71: [50, 94], 73: [60, 96], 80: [48, 96], 81: [36, 96], 88: [36, 96], 89: [36, 96], 128: [35, 81] };
+export const RANGES: Record<number, [number, number]> = { 0: [36, 96], 4: [36, 96], 5: [36, 96], 6: [36, 96], 8: [48, 96], 9: [60, 96], 10: [60, 96], 11: [53, 96], 16: [36, 96], 26: [40, 88], 27: [40, 88], 28: [40, 88], 29: [40, 88], 30: [40, 88], 32: [28, 67], 33: [28, 67], 34: [28, 67], 36: [28, 67], 37: [28, 67], 38: [28, 72], 39: [28, 72], 40: [55, 103], 41: [48, 88], 42: [36, 76], 43: [28, 67], 46: [24, 103], 47: [36, 72], 48: [36, 96], 52: [48, 84], 56: [54, 82], 57: [40, 72], 60: [34, 77], 64: [46, 92], 65: [49, 80], 66: [44, 79], 67: [37, 75], 68: [58, 91], 70: [34, 75], 71: [50, 94], 73: [60, 96], 80: [48, 96], 81: [36, 96], 88: [36, 96], 89: [36, 96], 128: [35, 81] };
 
 export const INSTRUMENT_NAMES: Record<number, string> = {
-  0: "グランドピアノ", 4: "エレクトリックピアノ", 5: "エレクトリックピアノ2", 6: "ハープシコード", 11: "ヴィブラフォン", 16: "ドローバーオルガン",
+  0: "グランドピアノ", 4: "エレクトリックピアノ", 5: "エレクトリックピアノ2", 6: "ハープシコード", 8: "チェレスタ", 9: "グロッケン", 10: "オルゴール", 11: "ヴィブラフォン", 16: "ドローバーオルガン",
   26: "ジャズギター", 27: "クリーンギター", 28: "ミュートギター", 29: "オーバードライブギター", 30: "ディストーションギター",
   32: "アコースティックベース", 33: "フィンガーベース", 34: "ピックベース", 36: "スラップベース", 37: "スラップベース2", 38: "シンセベース", 39: "シンセベース2",
   40: "ヴァイオリン", 41: "ヴィオラ", 42: "チェロ", 43: "コントラバス", 46: "ハープ", 48: "ストリングス", 52: "クワイア",
@@ -149,7 +150,7 @@ function styleChord(chord: string, modern: boolean, rng: () => number) {
 const namedChord = (root: number, offset: number, quality: string) => ROOTS[(root + offset) % 12] + quality;
 
 function sectionMelody(name: string): SectionPlan["melody"] {
-  if (["head", "A", "chorus", "final chorus", "exposition", "recapitulation"].includes(name)) return "theme";
+  if (["head", "A", "chorus", "final chorus", "exposition", "recapitulation", "lullaby"].includes(name)) return "theme";
   if (["B", "verse", "prechorus", "bridge"].includes(name)) return "contrast";
   if (["solo", "solos", "shout chorus", "development"].includes(name)) return "improv";
   return "sparse";
@@ -209,7 +210,7 @@ export function createTrackPlan(seed: string, genre: Genre): TrackPlan {
   const sections = makeSections(rng, config, bars, mood);
   const chords = sections.flatMap((section, index) => {
     const degrees = config.progressions[(index + Math.floor(rng() * config.progressions.length)) % config.progressions.length];
-    const turn = index % degrees.length;
+    const turn = genre === "musicBox" ? 0 : index % degrees.length;
     return Array.from({ length: section.bars }, (_, bar) => chordName(root, degrees[(bar + turn) % degrees.length]));
   });
   for (const section of sections) {
@@ -221,11 +222,11 @@ export function createTrackPlan(seed: string, genre: Genre): TrackPlan {
       [chords[bar], chords[bar + 1]] = pick(rng, pairs);
     }
   }
-  const phraseEnds = makePhraseEnds(rng, sections);
+  const phraseEnds = genre === "musicBox" ? Array.from({ length: bars / 4 }, (_, index) => (index + 1) * 4) : makePhraseEnds(rng, sections);
   const linkEnds: number[] = [];
   for (const end of phraseEnds) {
     const sectionEnd = sections.some(section => end === section.startBar + section.bars);
-    const cadence = pick(rng, sectionEnd ? ["authentic", "authentic", "plagal"] : ["half", "authentic", "plagal", "deceptive", "link", "link"]);
+    const cadence = genre === "musicBox" ? "authentic" : pick(rng, sectionEnd ? ["authentic", "authentic", "plagal"] : ["half", "authentic", "plagal", "deceptive", "link", "link"]);
     if (cadence === "authentic") [chords[end - 2], chords[end - 1]] = [chordName(root, 5), chordName(root, 1)];
     if (cadence === "plagal") [chords[end - 2], chords[end - 1]] = [chordName(root, 4), chordName(root, 1)];
     if (cadence === "deceptive") [chords[end - 2], chords[end - 1]] = [chordName(root, 5), chordName(root, 6)];
@@ -243,7 +244,7 @@ export function createTrackPlan(seed: string, genre: Genre): TrackPlan {
     mood: config.moods[mood],
     key: KEYS[root],
     bpm,
-    feel: straight ? "ストレート8" : "スイング",
+    feel: (genre === "jazz" || genre === "bigBand") && !straight ? "スイング" : "ストレート8",
     swing: genre === "jazz" || genre === "bigBand" ? swingForTempo(bpm, straight) : config.swing,
     harmonyStyle: modern ? "モダン" : "ヴィンテージ",
     durationSeconds,
@@ -294,6 +295,7 @@ function swingOffset(plan: TrackPlan, beat: number) {
 type PhraseEnding = "closed" | "imperfect" | "half" | "plagal" | "deceptive" | "continue";
 
 function phraseEnding(plan: TrackPlan, startBar: number, bars: number, salt: string): PhraseEnding {
+  if (plan.genre === "musicBox") return "closed";
   const endBar = startBar + bars;
   if (endBar >= plan.chords.length) return "closed";
   const tonic = ROOTS.indexOf(plan.key.replace("♭", "b").replace("♯", "#"));
@@ -330,10 +332,10 @@ function melodyPhrase(plan: TrackPlan, startBar: number, barCount: number, mode:
   const bars = Array.from({ length: barCount }, (_, bar) => mode === "sparse"
     ? pick(rng, [[0, 2], [0, 1.5], [0, 2.5]])
     : bar % 3 === 0 ? motif : bar % 3 === 1 ? motifPrime : answer);
-  bars[barCount - 1] = pick(rng, ending === "continue"
+  bars[barCount - 1] = plan.genre === "musicBox" ? [0, 1, 2] : pick(rng, ending === "continue"
     ? [[0, 1.5, 2.5, 3.5], [.5, 1.5, 2.5, 3.5]]
     : mode === "sparse" ? [[0, 2], [0, 1.5], [.5, 2.5]] : [[0, 1, 2], [0, .5, 1.5, 2.5], [0, 1, 2.5], [.5, 1.5, 3]]);
-  if (barCount > 2 && mode !== "sparse" && rng() < config.melody.syncopation) bars[1 + Math.floor(rng() * (barCount - 2))] = pick(rng, [[.5, 1.5, 2.5, 3.5], [.5, 1, 2.5, 3.5], [.5, 1.5, 2, 3.5]]);
+  if (plan.genre !== "musicBox" && barCount > 2 && mode !== "sparse" && rng() < config.melody.syncopation) bars[1 + Math.floor(rng() * (barCount - 2))] = pick(rng, [[.5, 1.5, 2.5, 3.5], [.5, 1, 2.5, 3.5], [.5, 1.5, 2, 3.5]]);
   const tension = config.melody.tension * (mode === "improv" ? 1.6 : mode === "sparse" ? .4 : 1);
   const sourcePitches = [...source].sort((a, b) => a.beat - b.beat).map(note => note.pitch);
   const learnedShape = sourcePitches.slice(0, 4).map(pitch => Math.max(-5, Math.min(5, pitch - sourcePitches[0])));
@@ -363,7 +365,7 @@ function melodyPhrase(plan: TrackPlan, startBar: number, barCount: number, mode:
     const duration = cadence
       ? ending === "continue" ? Math.max(.18, 4 - offset - .04) : Math.max(.4, (sectionEnd ? 3 : 3.5) - offset)
       : Math.max(config.melody.grid * .72, (next - offset) * .9);
-    events.push({ beat, duration, pitch, velocity: 70 + Math.round(arc * 16) + (strong ? 5 : 0), instrument: plan.instruments.lead[0] });
+    events.push({ beat, duration, pitch, velocity: plan.genre === "musicBox" ? 48 + Math.round(arc * 5) + (strong ? 2 : 0) : 70 + Math.round(arc * 16) + (strong ? 5 : 0), instrument: plan.instruments.lead[0] });
     previous = pitch;
   }));
   return events;
@@ -415,8 +417,8 @@ function addRhythm(notes: NoteEvent[], plan: TrackPlan, bar: number, section: Se
   const config = GENRES[plan.genre];
   const start = bar * 4;
   if (config.drums === "none") {
-    const steps = section.energy > .7 ? 8 : 4;
-    for (let i = 0; i < steps; i++) notes.push({ beat: start + i * 4 / steps, duration: 3.4 / steps, pitch: chordPitches(plan.chords[bar], 3)[i % 3], velocity: 38 + section.energy * 24 + (i % 2) * 6, instrument: plan.instruments.harmony[0] });
+    const steps = plan.genre === "musicBox" ? 2 : section.energy > .7 ? 8 : 4;
+    for (let i = 0; i < steps; i++) notes.push({ beat: start + i * 4 / steps, duration: 3.4 / steps, pitch: chordPitches(plan.chords[bar], 3)[i % 3], velocity: plan.genre === "musicBox" ? 36 + i * 2 : 38 + section.energy * 24 + (i % 2) * 6, instrument: plan.instruments.harmony[0] });
     return;
   }
   const kick = config.drums === "funk" ? [0, 1.5, 2.5] : [0, 2];
@@ -441,12 +443,12 @@ function addBass(notes: NoteEvent[], plan: TrackPlan, bar: number, section: Sect
   const config = GENRES[plan.genre];
   const start = bar * 4;
   const root = 36 + rootOf(plan.chords[bar]);
-  const pattern = config.bass === "walk" ? [0, 4, 7, 9] : config.bass === "sync" ? [0, 0, 7, 0, 10] : config.bass === "eighth" ? [0, 0, 7, 7, 0, 0, 7, 10] : [0, 7, 0, 7];
+  const pattern = config.bass === "walk" ? [0, 4, 7, 9] : config.bass === "sync" ? [0, 0, 7, 0, 10] : config.bass === "eighth" ? [0, 0, 7, 7, 0, 0, 7, 10] : plan.genre === "musicBox" ? [0, 7] : [0, 7, 0, 7];
   const active = section.energy < .5 ? pattern.filter((_, index) => index % 2 === 0) : pattern;
   const step = 4 / active.length;
   active.forEach((interval, i) => {
     const approach = i === active.length - 1 && section.energy > .65 ? 35 + rootOf(plan.chords[Math.min(bar + 1, plan.chords.length - 1)]) : root + interval;
-    notes.push({ beat: start + i * step, duration: step * .86, pitch: approach, velocity: 58 + section.energy * 24 + (i === 0 ? 8 : 0), instrument: plan.instruments.bass });
+    notes.push({ beat: start + i * step, duration: step * .86, pitch: approach, velocity: plan.genre === "musicBox" ? 42 + (i === 0 ? 3 : 0) : 58 + section.energy * 24 + (i === 0 ? 8 : 0), instrument: plan.instruments.bass });
   });
 }
 
@@ -510,8 +512,8 @@ export function buildSong(plan: TrackPlan, aiTheme?: NoteEvent[], aiDrums?: Note
     const phraseEnds = plan.phraseEnds.filter(end => end > section.startBar && end <= section.startBar + section.bars);
     phraseEnds.forEach((endBar, phrase) => {
       const phraseBars = endBar - startBar;
-      const melody = section.melody === "theme" && phrase === 0 && phraseBars === 4
-        ? placeTheme(theme, plan, startBar, sectionIndex)
+      const melody = section.melody === "theme" && phraseBars === 4 && (phrase === 0 || plan.genre === "musicBox")
+        ? placeTheme(theme, plan, startBar, plan.genre === "musicBox" ? 0 : sectionIndex)
         : melodyPhrase(plan, startBar, phraseBars, section.melody === "theme" ? (phrase ? (phrase % 2 ? "contrast" : "improv") : "theme") : section.melody, `${sectionIndex}:${phrase}`, phrase === 0 ? theme : undefined);
       addLeadVoices(notes, melody, plan);
       startBar = endBar;
@@ -522,9 +524,10 @@ export function buildSong(plan: TrackPlan, aiTheme?: NoteEvent[], aiDrums?: Note
     }
   }
   const tonic = 36 + ROOTS.indexOf(plan.key.replace("♭", "b").replace("♯", "#"));
-  notes.push({ beat: totalBeats - 8, duration: 3.5, pitch: tonic + 7, velocity: 82, instrument: plan.instruments.bass });
-  notes.push({ beat: totalBeats - 4, duration: 3.8, pitch: tonic, velocity: 88, instrument: plan.instruments.bass });
-  for (const [index, pitch] of [tonic + 24, tonic + 28, tonic + 31].entries()) notes.push({ beat: totalBeats - 4, duration: 3.8, pitch, velocity: 72, instrument: plan.instruments.harmony[index % plan.instruments.harmony.length] });
+  const cadenceVelocity = plan.genre === "musicBox" ? 46 : 82;
+  notes.push({ beat: totalBeats - 8, duration: 3.5, pitch: tonic + 7, velocity: cadenceVelocity, instrument: plan.instruments.bass });
+  notes.push({ beat: totalBeats - 4, duration: 3.8, pitch: tonic, velocity: cadenceVelocity + 6, instrument: plan.instruments.bass });
+  for (const [index, pitch] of [tonic + 24, tonic + 28, tonic + 31].entries()) notes.push({ beat: totalBeats - 4, duration: 3.8, pitch, velocity: plan.genre === "musicBox" ? 42 : 72, instrument: plan.instruments.harmony[index % plan.instruments.harmony.length] });
   return { plan, notes: normalizeNotes(notes, totalBeats), theme, fingerprint: fingerprint(theme), ai: Boolean(aiTheme?.length) };
 }
 

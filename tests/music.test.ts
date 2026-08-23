@@ -73,6 +73,10 @@ test("sections change dynamics and introduce melodies independent from the theme
       signatures.push(phrase.slice(0, 20).map(note => `${(note.beat - phraseStart * 4).toFixed(2)}:${note.pitch - firstPitch}:${note.duration.toFixed(2)}`).join("|"));
     }
     const counts = [...new Set(signatures)].map(signature => signatures.filter(value => value === signature).length);
+    if (genre === "musicBox") {
+      assert.ok(new Set(signatures).size <= 2, "music box should repeat one stable lullaby phrase");
+      continue;
+    }
     assert.ok(new Set(signatures).size >= Math.min(4, Math.ceil(signatures.length / 3)), `${genre} lacks melodic variety`);
     assert.ok(Math.max(...counts) <= Math.max(2, Math.ceil(signatures.length * .35)), `${genre} repeats one phrase too often`);
     const densities = plan.sections.map(section => song.notes.filter(note => note.beat >= section.startBar * 4 && note.beat < (section.startBar + section.bars) * 4).length / section.bars);
@@ -86,7 +90,7 @@ test("songs contain theme, harmony, bass, rhythm and a bounded cadence", () => {
     const theme = ruleTheme(plan);
     const song = buildSong(plan, theme);
     for (const instrument of [...plan.instruments.lead, ...plan.instruments.harmony, plan.instruments.bass, ...plan.instruments.color]) assert.ok(song.notes.some(note => note.instrument === instrument));
-    assert.ok(song.notes.some(note => genre === "classical" ? note.beat % 1 === .5 : note.instrument === 128));
+    assert.equal(song.notes.some(note => note.instrument === 128), GENRES[genre].drums !== "none");
     assert.ok(song.notes.some(note => note.beat >= plan.chords.length * 4 - 4));
     const keys = new Set<string>();
     for (const note of song.notes) {
@@ -195,8 +199,11 @@ test("phrases vary closure while sections cadence and jazz and pop keep controll
       assert.ok(song.notes.some(note => plan.instruments.lead.includes(note.instrument) && note.beat === finalBeat && note.pitch % 12 === tonic));
     }
     assert.ok(semitoneEndings / phrases < .45, `${genre} overuses semitone endings`);
-    assert.ok(rootEndings > 0 && rootEndings / phrases < .65, `${genre} lacks open endings`);
-    assert.ok(connections > 0 && shapes.size >= 8, `${genre} lacks ending variety`);
+    if (genre === "musicBox") assert.ok(rootEndings / phrases > .9, "music box cadence should stay predictable");
+    else {
+      assert.ok(rootEndings > 0 && rootEndings / phrases < .65, `${genre} lacks open endings`);
+      assert.ok(connections > 0 && shapes.size >= 8, `${genre} lacks ending variety`);
+    }
   }
   for (const genre of ["jazz", "pop"] as const) {
     const plan = createTrackPlan(`chromatic-${genre}`, genre);
@@ -232,8 +239,11 @@ test("melodies occasionally enter offbeat and sustain across a strong beat", () 
         bars++;
       }
     }
-    assert.ok(syncopatedBars > 0 && syncopatedBars / bars < .2, `${genre} syncopation is not occasional`);
-    assert.ok(sustained > 0, `${genre} has no tied syncopation`);
+    if (genre === "musicBox") assert.equal(syncopatedBars, 0, "music box should not disturb the pulse");
+    else {
+      assert.ok(syncopatedBars > 0 && syncopatedBars / bars < .2, `${genre} syncopation is not occasional`);
+      assert.ok(sustained > 0, `${genre} has no tied syncopation`);
+    }
   }
 });
 
@@ -241,7 +251,8 @@ test("melodies follow variable two-to-eight-bar harmonic phrases", () => {
   for (const genre of genres) {
     const plan = createTrackPlan(`phrasing-${genre}`, genre);
     const song = buildSong(plan);
-    assert.ok(plan.phraseEnds.some((end, index) => end - (plan.phraseEnds[index - 1] ?? 0) !== 4), `${genre} stayed on four-bar phrases`);
+    if (genre === "musicBox") assert.ok(plan.phraseEnds.every((end, index) => end - (plan.phraseEnds[index - 1] ?? 0) === 4), "music box should keep four-bar phrases");
+    else assert.ok(plan.phraseEnds.some((end, index) => end - (plan.phraseEnds[index - 1] ?? 0) !== 4), `${genre} stayed on four-bar phrases`);
     const melody = song.notes.filter(note => plan.genre === "bigBand" ? plan.instruments.lead.includes(note.instrument) : note.instrument === plan.instruments.lead[0]);
     let startBar = 0;
     for (const endBar of plan.phraseEnds) {
@@ -254,6 +265,22 @@ test("melodies follow variable two-to-eight-bar harmonic phrases", () => {
       for (let index = 1; index < phrase.length; index++) assert.ok(phrase[index].beat - (phrase[index - 1].beat + phrase[index - 1].duration) <= 1 + 1e-9, `${genre} has an arbitrary long rest`);
       startBar = endBar;
     }
+  }
+});
+
+test("music box stays slow, soft, sparse and deliberately repetitive", () => {
+  for (let seed = 0; seed < 8; seed++) {
+    const plan = createTrackPlan(`lullaby-${seed}`, "musicBox");
+    const song = buildSong(plan);
+    const lead = song.notes.filter(note => note.instrument === plan.instruments.lead[0]);
+    assert.ok(plan.bpm >= 52 && plan.bpm <= 68);
+    assert.equal(plan.feel, "ストレート8");
+    assert.ok(!song.notes.some(note => note.instrument === 128));
+    assert.ok(Math.max(...lead.map(note => note.velocity)) <= 55);
+    const rhythms = plan.phraseEnds.map(end => lead
+      .filter(note => note.beat >= (end - 4) * 4 && note.beat < end * 4)
+      .map(note => `${(note.beat - (end - 4) * 4).toFixed(2)}:${note.duration.toFixed(2)}`).join("|"));
+    assert.ok(new Set(rhythms).size <= 2);
   }
 });
 

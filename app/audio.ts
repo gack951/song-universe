@@ -3,17 +3,21 @@ import type { NoteEvent, Song } from "./music";
 type Synth = import("spessasynth_lib").WorkletSynthesizer;
 
 export type SoundfontQuality = "standard" | "rich";
+const RICH_SOUNDFONT_URL = "https://song-universe-audio.gack951.workers.dev/MuseScore_General_Full.sf3?v=2";
 
 export const soundfontUrls = (pack: string, quality: SoundfontQuality = "standard") => quality === "rich"
-  ? Array.from({ length: 11 }, (_, index) => `/soundfonts/rich.sf3.${String(index).padStart(2, "0")}?v=1`)
+  ? [RICH_SOUNDFONT_URL]
   : Array.from({ length: 3 }, (_, index) => `/soundfonts/${pack}.sf3.${index}?v=4`);
+
+let soundfontCachePromise: Promise<Cache> | undefined;
+const soundfontCache = () => soundfontCachePromise ??= caches.delete("song-universe-soundfonts-v1").then(() => caches.open("song-universe-soundfonts-v2"));
 
 async function soundfontResponse(url: string) {
   const cached = await caches.match(url);
   if (cached) return cached;
   const response = await fetch(url);
   if (!response.ok) throw new Error("音源の取得に失敗しました。");
-  await (await caches.open("song-universe-soundfonts-v1")).put(url, response.clone());
+  await (await soundfontCache()).put(url, response.clone());
   return response;
 }
 
@@ -51,7 +55,7 @@ export class AudioEngine {
       this.synth.connect(this.context.destination);
       await this.synth.isReady;
     }
-    const id = quality === "rich" ? "rich-v1" : pack;
+    const id = quality === "rich" ? "rich-v2" : pack;
     if (this.pack !== id) {
       const responses = await Promise.all(soundfontUrls(pack, quality).map(soundfontResponse));
       const previous = this.pack;

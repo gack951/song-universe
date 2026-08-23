@@ -7,8 +7,8 @@ test("split standard soundfonts reassemble in order", () => {
   assert.deepEqual([...new Uint8Array(joinBuffers([Uint8Array.of(1, 2).buffer, Uint8Array.of(3).buffer]))], [1, 2, 3]);
 });
 
-test("rich soundfont is fetched as cacheable Pages-sized chunks", () => {
-  assert.deepEqual(soundfontUrls("jazz-bigband", "rich"), Array.from({ length: 11 }, (_, index) => `/soundfonts/rich.sf3.${String(index).padStart(2, "0")}?v=1`));
+test("rich soundfont comes from the external audio service", () => {
+  assert.deepEqual(soundfontUrls("jazz-bigband", "rich"), ["https://song-universe-audio.gack951.workers.dev/MuseScore_General_Full.sf3?v=2"]);
 });
 
 test("reverb and chorus stay restrained on the rhythm section", () => {
