@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AudioEngine, soundfontUrl } from "./audio";
+import { AudioEngine, soundfontUrls } from "./audio";
 import { GENRES, INSTRUMENT_NAMES, aiParts, buildSong, createTrackPlan, eighthNoteMilliseconds, initializeAI, newSeed, tooSimilar, type Genre, type PlaybackState, type Song } from "./music";
 
 const engine = new AudioEngine();
@@ -186,7 +186,7 @@ export default function Player() {
     try {
       if (!("AudioWorkletNode" in window)) throw new Error("AudioWorkletを利用できません。この端末は対象外です。");
       await initializeAI((value, label) => { setProgress(value); setProgressLabel(label); });
-      await cacheAsset(soundfontUrl(GENRES[desiredGenre.current].pack));
+      await Promise.all(soundfontUrls(GENRES[desiredGenre.current].pack).map(cacheAsset));
       setProgress(90); setProgressLabel("3曲を先読み中");
       await fillQueue(desiredGenre.current);
       setProgress(100); setProgressLabel("準備完了"); setState("paused");
@@ -259,7 +259,7 @@ export default function Player() {
 
   const chooseGenre = useCallback((next: Genre) => {
     setGenre(next); desiredGenre.current = next;
-    if (!soundfont.current) void cacheAsset(soundfontUrl(GENRES[next].pack));
+    if (!soundfont.current) void Promise.all(soundfontUrls(GENRES[next].pack).map(cacheAsset));
     if (started.current && queue.current[0]) void fillQueue(next, true); else void fillQueue(next);
   }, [fillQueue]);
 

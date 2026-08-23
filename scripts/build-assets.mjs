@@ -20,5 +20,6 @@ for (const [name, allowed] of Object.entries(programs)) {
     if (!standard || (preset.isDrum ? preset.program !== 0 : !allowed.has(preset.program))) bank.deletePreset(preset);
   }
   bank.removeUnusedElements();
-  await writeFile(`public/soundfonts/${name}.sf3`, new Uint8Array(bank.writeSF2()));
+  const bytes = new Uint8Array(bank.writeSF2());
+  for (let index = 0; index < 3; index++) await writeFile(`public/soundfonts/${name}.sf3.${index}`, bytes.slice(index * 8 * 1024 * 1024, (index + 1) * 8 * 1024 * 1024));
 }

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AudioEngine, effectSends, validateSoundfontFile } from "../app/audio.ts";
+import { AudioEngine, effectSends, joinBuffers, soundfontUrls, validateSoundfontFile } from "../app/audio.ts";
+
+test("split standard soundfonts reassemble in order", () => {
+  assert.deepEqual(soundfontUrls("jazz-bigband"), ["/soundfonts/jazz-bigband.sf3.0?v=4", "/soundfonts/jazz-bigband.sf3.1?v=4", "/soundfonts/jazz-bigband.sf3.2?v=4"]);
+  assert.deepEqual([...new Uint8Array(joinBuffers([Uint8Array.of(1, 2).buffer, Uint8Array.of(3).buffer]))], [1, 2, 3]);
+});
 
 test("local rich soundfonts are bounded and type checked", () => {
   assert.doesNotThrow(() => validateSoundfontFile({ name: "studio.sf3", size: 200_000_000 }));
