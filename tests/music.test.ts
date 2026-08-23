@@ -1,12 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GENRES, RANGES, buildSong, createTrackPlan, eighthNoteMilliseconds, fingerprint, ruleTheme, tooSimilar, type Genre } from "../app/music.ts";
+import { GENRES, RANGES, buildSong, createTrackPlan, eighthNoteMilliseconds, fingerprint, ruleTheme, swingForTempo, tooSimilar, type Genre } from "../app/music.ts";
 
 const genres = Object.keys(GENRES) as Genre[];
 
 test("piano roll clock follows an eighth note at the song BPM", () => {
   assert.equal(eighthNoteMilliseconds(60), 500);
   assert.equal(eighthNoteMilliseconds(120), 250);
+});
+
+test("jazz swing lightens with tempo and sometimes stays straight", () => {
+  assert.ok(swingForTempo(90) > swingForTempo(180));
+  assert.equal(swingForTempo(120, true), .5);
+  for (const genre of ["jazz", "bigBand"] as const) {
+    const plans = Array.from({ length: 64 }, (_, index) => createTrackPlan(`feel-${genre}-${index}`, genre));
+    assert.ok(plans.some(plan => plan.feel === "スイング"));
+    assert.ok(plans.some(plan => plan.feel === "ストレート8"));
+    plans.filter(plan => plan.feel === "ストレート8").forEach(plan => assert.equal(plan.swing, .5));
+  }
 });
 
 test("plans are deterministic and stay inside every genre contract", () => {
@@ -182,16 +193,16 @@ test("phrases vary closure while sections cadence and jazz and pop keep controll
   }
 });
 
-test("jazz and big band use swing as their basic eighth-note feel", () => {
+test("jazz and big band apply the planned eighth-note feel consistently", () => {
   for (const genre of ["jazz", "bigBand"] as const) {
     const plan = createTrackPlan(`${genre}-metric-phrasing`, genre);
     plan.sections.forEach(section => { section.energy = 1; });
     const song = buildSong(plan, Array.from({ length: 32 }, (_, index) => ({ beat: index * .25, duration: .25, pitch: 54 + index % 19, velocity: 90, instrument: plan.instruments.lead[0] })), [{ beat: .5, duration: .1, pitch: 49, velocity: 90, instrument: 128 }]);
     song.notes.filter(note => plan.instruments.lead.includes(note.instrument)).forEach(note => {
       const position = note.beat - Math.floor(note.beat);
-      assert.ok(Math.abs(position) < 1e-9 || Math.abs(position - GENRES[genre].swing) < 1e-9, `off-grid ${genre} onset ${note.beat}`);
+      assert.ok(Math.abs(position) < 1e-9 || Math.abs(position - plan.swing) < 1e-9, `off-grid ${genre} onset ${note.beat}`);
     });
-    assert.ok(song.notes.some(note => note.instrument === 128 && note.pitch === 49 && Math.abs(note.beat % 1 - GENRES[genre].swing) < 1e-9), `${genre} AI drum stayed straight`);
+    assert.ok(song.notes.some(note => note.instrument === 128 && note.pitch === 49 && Math.abs(note.beat % 1 - plan.swing) < 1e-9), `${genre} AI drum did not follow the planned feel`);
   }
 });
 

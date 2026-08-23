@@ -304,7 +304,7 @@ export default function Player() {
       <div className="track-copy">
         <span className={`status ${state}`}>{state === "loading" ? progressLabel : state === "buffering" ? "次の曲を生成中" : playing ? "再生中" : state === "paused" ? "一時停止" : "エラー"}</span>
         <h2>{current?.plan.title ?? (progress === 100 ? "準備ができました" : "新しい宇宙を生成中")}</h2>
-        {current ? <p>{GENRES[current.plan.genre].label} <i /> {current.plan.mood} <i /> {current.plan.key} <i /> {current.plan.bpm} BPM</p> : null}
+        {current ? <p>{GENRES[current.plan.genre].label} <i /> {current.plan.feel} <i /> {current.plan.mood} <i /> {current.plan.key} <i /> {current.plan.bpm} BPM</p> : null}
       </div>
       {state === "loading" && !current ? <div className="progress" role="progressbar" aria-valuenow={progress} aria-label={progressLabel}><span style={{ width: `${progress}%` }} /></div> : null}
       {error ? <div className="error" role="alert"><p>{error}</p><button onClick={() => void prepare()}>再取得・再試行</button></div> : null}

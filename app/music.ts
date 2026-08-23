@@ -7,6 +7,8 @@ export type TrackPlan = {
   mood: string;
   key: string;
   bpm: number;
+  feel: "スイング" | "ストレート8";
+  swing: number;
   durationSeconds: number;
   form: string[];
   chords: string[];
@@ -84,6 +86,8 @@ export const INSTRUMENT_NAMES: Record<number, string> = {
 };
 
 export const eighthNoteMilliseconds = (bpm: number) => 30000 / bpm;
+
+export const swingForTempo = (bpm: number, straight = false) => straight ? .5 : Math.max(.56, Math.min(.68, .77 - bpm * .001));
 
 function hash(seed: string) {
   let h = 2166136261;
@@ -189,6 +193,7 @@ export function createTrackPlan(seed: string, genre: Genre): TrackPlan {
   const durationSeconds = Math.round(bars * 240 / bpm);
   const root = Math.floor(rng() * 12);
   const mood = Math.floor(rng() * config.moods.length);
+  const straight = (genre === "jazz" || genre === "bigBand") && rng() < .2;
   const sections = makeSections(rng, config, bars, mood);
   const chords = sections.flatMap((section, index) => {
     const degrees = config.progressions[(index + Math.floor(rng() * config.progressions.length)) % config.progressions.length];
@@ -225,6 +230,8 @@ export function createTrackPlan(seed: string, genre: Genre): TrackPlan {
     mood: config.moods[mood],
     key: KEYS[root],
     bpm,
+    feel: straight ? "ストレート8" : "スイング",
+    swing: genre === "jazz" || genre === "bigBand" ? swingForTempo(bpm, straight) : config.swing,
     durationSeconds,
     form: config.form,
     chords,
@@ -264,8 +271,8 @@ function nearest(pitch: number, candidates: number[]) {
   return candidates.reduce((best, value) => Math.abs(value - pitch) < Math.abs(best - pitch) ? value : best);
 }
 
-function swingOffset(config: GenreConfig, beat: number) {
-  return config.swing > .5 && beat % 1 === .5 ? Math.floor(beat) + config.swing : beat;
+function swingOffset(plan: TrackPlan, beat: number) {
+  return plan.swing > .5 && beat % 1 === .5 ? Math.floor(beat) + plan.swing : beat;
 }
 
 type PhraseEnding = "closed" | "imperfect" | "half" | "plagal" | "deceptive" | "continue";
@@ -321,10 +328,10 @@ function melodyPhrase(plan: TrackPlan, startBar: number, barCount: number, mode:
   const sectionEnd = plan.sections.some(section => startBar + barCount === section.startBar + section.bars);
   let previous = center;
   bars.forEach((pattern, bar) => pattern.forEach((rawOffset, index) => {
-    const offset = swingOffset(config, rawOffset);
+    const offset = swingOffset(plan, rawOffset);
     const lastBar = bar === barCount - 1;
     const nextRaw = pattern[index + 1] ?? (lastBar ? 3.5 : 4);
-    const next = swingOffset(config, nextRaw);
+    const next = swingOffset(plan, nextRaw);
     const beat = (startBar + bar) * 4 + offset;
     const chord = plan.chords[startBar + bar];
     const chordTones = [-1, 0, 1].flatMap(octave => chordPitches(chord, 4).map(pitch => pitch + octave * 12));
@@ -402,7 +409,7 @@ function addRhythm(notes: NoteEvent[], plan: TrackPlan, bar: number, section: Se
   const hats = section.energy > .72 ? 8 : 4;
   for (let i = 0; i < hats; i++) {
     const straight = i * 4 / hats;
-    notes.push({ beat: start + swingOffset(config, straight), duration: .08, pitch: config.drums === "swing" ? 51 : 42, velocity: 38 + section.energy * 26 + (i % 2) * 7, instrument: 128 });
+    notes.push({ beat: start + swingOffset(plan, straight), duration: .08, pitch: config.drums === "swing" ? 51 : 42, velocity: 38 + section.energy * 26 + (i % 2) * 7, instrument: 128 });
   }
   if (bar === section.startBar + section.bars - 1 && section.energy > .52) {
     const fill = pick(random(`${plan.seed}:fill:${bar}`), [
@@ -432,7 +439,7 @@ function addHarmony(notes: NoteEvent[], plan: TrackPlan, bar: number, section: S
   const pitches = chordPitches(plan.chords[bar], config.voicing === "power" ? 3 : 4);
   const starts = section.energy < .45 ? [0] : config.voicing === "stab" ? [0, 1.5, 2.5] : config.voicing === "power" ? [0, 2] : [0];
   const harmony = section.energy > .62 ? plan.instruments.harmony : plan.instruments.harmony.slice(0, 1);
-  for (const beat of starts.map(value => swingOffset(config, value))) for (const [index, pitch] of pitches.slice(0, config.voicing === "power" ? 2 : 4).entries()) {
+  for (const beat of starts.map(value => swingOffset(plan, value))) for (const [index, pitch] of pitches.slice(0, config.voicing === "power" ? 2 : 4).entries()) {
     const targets = harmony.length === 1 ? harmony : [harmony[index % harmony.length]];
     for (const instrument of targets) notes.push({ beat: bar * 4 + beat, duration: starts.length === 1 ? 3.7 : .42, pitch, velocity: 42 + section.energy * (config.voicing === "shell" ? 22 : 32), instrument });
   }
@@ -495,7 +502,7 @@ export function buildSong(plan: TrackPlan, aiTheme?: NoteEvent[], aiDrums?: Note
     });
     if (aiDrums?.length && config.drums !== "none" && section.energy > .7) {
       const fillBar = section.startBar + section.bars - 1;
-      for (const note of aiDrums) notes.push({ ...note, beat: fillBar * 4 + swingOffset(config, note.beat % 4), velocity: 58 + section.energy * 32, instrument: 128 });
+      for (const note of aiDrums) notes.push({ ...note, beat: fillBar * 4 + swingOffset(plan, note.beat % 4), velocity: 58 + section.energy * 32, instrument: 128 });
     }
   }
   const tonic = 36 + ROOTS.indexOf(plan.key.replace("♭", "b").replace("♯", "#"));
