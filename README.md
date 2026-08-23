@@ -26,7 +26,7 @@ npm test
 - 曲→セクション→4小節フレーズの階層で、輪郭・リズム骨格・コード適合音を順に決める（[MusicVAE](https://arxiv.org/abs/1803.05428)、[Music Frameworks](https://archives.ismir.net/ismir2021/paper/000017.pdf)）。
 - A/A′/応答/終止として小さな語彙を意図的に反復・変奏し、句末ほど予測可能にする（[Daiほか 2022](https://arxiv.org/abs/2209.00182)）。
 - ジャズは拍位置・フレーズ・コードを同時に扱い、弱拍の外音だけを次の強拍で解決する（[Jazz Transformer](https://archives.ismir.net/ismir2020/paper/000339.pdf)、[Frielerほか 2022](https://transactions.ismir.net/articles/10.5334/tismir.87)）。
-- オルゴールは子守歌研究で報告された遅いテンポ、少ない音数・楽器数、低い旋律／リズム複雑性に合わせ、ドラムなし・弱音・4小節の安定した反復とする。音楽的な展開や多様化は行わない（[Mehrほか 2018](https://pmc.ncbi.nlm.nih.gov/articles/PMC5805477/)、[Bainbridgeほか 2021](https://pmc.ncbi.nlm.nih.gov/articles/PMC8220405/)）。
+- オルゴールは子守歌研究で報告された遅いテンポ、少ない音数・楽器数、低い旋律／リズム複雑性に合わせ、ドラムなし・弱い伴奏・4小節の安定した反復とする。主旋律はグロッケンで長く保持し、音楽的な展開や多様化は行わない（[Mehrほか 2018](https://pmc.ncbi.nlm.nih.gov/articles/PMC5805477/)、[Bainbridgeほか 2021](https://pmc.ncbi.nlm.nih.gov/articles/PMC8220405/)）。
 - 複数主旋律は独立生成せず、同一フレーズからコード構成音の3度・4度・5度・6度で派生する。
 
 モデルと標準音源は `public/`、リッチ音源はR2バケット `song-universe-audio`、ライセンス全文は `public/licenses/` にあります。標準音源パックを再生成する場合はMuseScore GeneralのSF3を取得し、`npm run assets -- /path/to/MuseScore_General.sf3` を実行してください。

@@ -50,7 +50,7 @@ test("plans are deterministic and stay inside every genre contract", () => {
       assert.equal(section.bars % 4, 0);
       assert.ok(section.energy >= .25 && section.energy <= 1);
     });
-    assert.ok(Object.values(GENRES[genre].instruments).every(pool => pool.length >= 2));
+    assert.ok(Object.entries(GENRES[genre].instruments).every(([part, pool]) => pool.length >= (genre === "musicBox" && part === "lead" ? 1 : 2)));
     assert.equal(first.instruments.lead.length, GENRES[genre].layers.lead);
     assert.equal(first.instruments.harmony.length, GENRES[genre].layers.harmony);
     assert.equal(first.instruments.color.length, GENRES[genre].layers.color);
@@ -268,15 +268,23 @@ test("melodies follow variable two-to-eight-bar harmonic phrases", () => {
   }
 });
 
-test("music box stays slow, sparse, repetitive and plays every note at full velocity", () => {
+test("music box sustains a full-velocity glockenspiel over quiet continuous backing", () => {
   for (let seed = 0; seed < 8; seed++) {
     const plan = createTrackPlan(`lullaby-${seed}`, "musicBox");
     const song = buildSong(plan);
     const lead = song.notes.filter(note => note.instrument === plan.instruments.lead[0]);
     assert.ok(plan.bpm >= 52 && plan.bpm <= 68);
     assert.equal(plan.feel, "ストレート8");
+    assert.deepEqual(plan.instruments.lead, [9]);
     assert.ok(!song.notes.some(note => note.instrument === 128));
-    assert.ok(song.notes.every(note => note.velocity === 127));
+    assert.ok(lead.every((note, index) => note.velocity === 127 && note.beat + note.duration === (lead[index + 1]?.beat ?? plan.chords.length * 4)));
+    const harmony = song.notes.filter(note => plan.instruments.harmony.includes(note.instrument));
+    const bass = song.notes.filter(note => note.instrument === plan.instruments.bass);
+    assert.ok([...harmony, ...bass].every(note => note.velocity < 64));
+    for (let boundary = 4; boundary < plan.chords.length * 4; boundary += 4) {
+      assert.ok(harmony.some(note => note.beat < boundary && note.beat + note.duration >= boundary));
+      assert.ok(bass.some(note => note.beat < boundary && note.beat + note.duration >= boundary));
+    }
     const rhythms = plan.phraseEnds.map(end => lead
       .filter(note => note.beat >= (end - 4) * 4 && note.beat < end * 4)
       .map(note => `${(note.beat - (end - 4) * 4).toFixed(2)}:${note.duration.toFixed(2)}`).join("|"));
