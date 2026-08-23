@@ -528,7 +528,7 @@ export function buildSong(plan: TrackPlan, aiTheme?: NoteEvent[], aiDrums?: Note
   notes.push({ beat: totalBeats - 8, duration: 3.5, pitch: tonic + 7, velocity: cadenceVelocity, instrument: plan.instruments.bass });
   notes.push({ beat: totalBeats - 4, duration: 3.8, pitch: tonic, velocity: cadenceVelocity + 6, instrument: plan.instruments.bass });
   for (const [index, pitch] of [tonic + 24, tonic + 28, tonic + 31].entries()) notes.push({ beat: totalBeats - 4, duration: 3.8, pitch, velocity: plan.genre === "musicBox" ? 42 : 72, instrument: plan.instruments.harmony[index % plan.instruments.harmony.length] });
-  return { plan, notes: normalizeNotes(notes, totalBeats), theme, fingerprint: fingerprint(theme), ai: Boolean(aiTheme?.length) };
+  return { plan, notes: normalizeNotes(notes, totalBeats).map(note => plan.genre === "musicBox" ? { ...note, velocity: 127 } : note), theme, fingerprint: fingerprint(theme), ai: Boolean(aiTheme?.length) };
 }
 
 type ModelSequence = { notes?: Array<{ pitch?: number | null; quantizedStartStep?: number | null; quantizedEndStep?: number | null }> | null };

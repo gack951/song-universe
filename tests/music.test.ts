@@ -268,7 +268,7 @@ test("melodies follow variable two-to-eight-bar harmonic phrases", () => {
   }
 });
 
-test("music box stays slow, soft, sparse and deliberately repetitive", () => {
+test("music box stays slow, sparse, repetitive and plays every note at full velocity", () => {
   for (let seed = 0; seed < 8; seed++) {
     const plan = createTrackPlan(`lullaby-${seed}`, "musicBox");
     const song = buildSong(plan);
@@ -276,7 +276,7 @@ test("music box stays slow, soft, sparse and deliberately repetitive", () => {
     assert.ok(plan.bpm >= 52 && plan.bpm <= 68);
     assert.equal(plan.feel, "ストレート8");
     assert.ok(!song.notes.some(note => note.instrument === 128));
-    assert.ok(Math.max(...lead.map(note => note.velocity)) <= 55);
+    assert.ok(song.notes.every(note => note.velocity === 127));
     const rhythms = plan.phraseEnds.map(end => lead
       .filter(note => note.beat >= (end - 4) * 4 && note.beat < end * 4)
       .map(note => `${(note.beat - (end - 4) * 4).toFixed(2)}:${note.duration.toFixed(2)}`).join("|"));
