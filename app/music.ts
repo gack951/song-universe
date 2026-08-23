@@ -9,6 +9,7 @@ export type TrackPlan = {
   bpm: number;
   feel: "スイング" | "ストレート8";
   swing: number;
+  harmonyStyle: "ヴィンテージ" | "モダン";
   durationSeconds: number;
   form: string[];
   chords: string[];
@@ -136,6 +137,15 @@ function chordName(root: number, degree: number) {
   return ROOTS[(root + semitones[degree - 1]) % 12] + qualities[degree - 1];
 }
 
+function styleChord(chord: string, modern: boolean, rng: () => number) {
+  if (!modern) return chord.replace("maj7", "").replace("m7b5", "m").replace("m7", "m");
+  if (rng() > .42) return chord;
+  if (chord.includes("maj7")) return chord.replace("maj7", rng() < .5 ? "maj9" : "maj13");
+  if (chord.includes("m7b5")) return chord.replace("m7b5", "m11b5");
+  if (chord.includes("m7")) return chord.replace("m7", rng() < .5 ? "m9" : "m11");
+  return chord.replace("7", rng() < .5 ? "9" : "13");
+}
+
 const namedChord = (root: number, offset: number, quality: string) => ROOTS[(root + offset) % 12] + quality;
 
 function sectionMelody(name: string): SectionPlan["melody"] {
@@ -194,6 +204,8 @@ export function createTrackPlan(seed: string, genre: Genre): TrackPlan {
   const root = Math.floor(rng() * 12);
   const mood = Math.floor(rng() * config.moods.length);
   const straight = (genre === "jazz" || genre === "bigBand") && rng() < .2;
+  const harmonyRng = random(`${seed}:harmony-style`);
+  const modern = harmonyRng() < .3;
   const sections = makeSections(rng, config, bars, mood);
   const chords = sections.flatMap((section, index) => {
     const degrees = config.progressions[(index + Math.floor(rng() * config.progressions.length)) % config.progressions.length];
@@ -222,6 +234,7 @@ export function createTrackPlan(seed: string, genre: Genre): TrackPlan {
   }
   config.cadence.slice(0, -1).forEach((degree, index, cadence) => { chords[chords.length - cadence.length + index] = chordName(root, degree); });
   linkEnds.forEach(end => { chords[end - 1] = namedChord(rootOf(chords[end]), 7, "7"); });
+  chords.forEach((chord, index) => { chords[index] = styleChord(chord, modern, harmonyRng); });
   const instruments = chooseInstruments(rng, config);
   return {
     seed,
@@ -232,6 +245,7 @@ export function createTrackPlan(seed: string, genre: Genre): TrackPlan {
     bpm,
     feel: straight ? "ストレート8" : "スイング",
     swing: genre === "jazz" || genre === "bigBand" ? swingForTempo(bpm, straight) : config.swing,
+    harmonyStyle: modern ? "モダン" : "ヴィンテージ",
     durationSeconds,
     form: config.form,
     chords,
@@ -246,11 +260,13 @@ function rootOf(chord: string) {
   return ROOTS.indexOf(name);
 }
 
-function chordPitches(chord: string, octave = 4) {
+function chordPitches(chord: string, octave = 4, includeTension = true) {
   const root = rootOf(chord) + 12 * (octave + 1);
   const minor = chord.includes("m") && !chord.includes("maj");
   const fifth = chord.includes("b5") ? 6 : 7;
-  return [root, root + (minor ? 3 : 4), root + fifth, root + (chord.includes("7") ? (chord.includes("maj") ? 11 : 10) : 12)];
+  const seventh = root + (chord.includes("maj") ? 11 : 10);
+  const tension = chord.includes("13") ? root + 21 : chord.includes("11") ? root + 17 : chord.includes("9") ? root + 14 : undefined;
+  return tension && includeTension ? [root, root + (minor ? 3 : 4), seventh, tension] : [root, root + (minor ? 3 : 4), root + fifth, chord.includes("7") ? seventh : root + 12];
 }
 
 export function ruleTheme(plan: TrackPlan, salt = "rule"): NoteEvent[] {
@@ -258,7 +274,7 @@ export function ruleTheme(plan: TrackPlan, salt = "rule"): NoteEvent[] {
 }
 
 function nearestChordPitch(pitch: number, chord: string) {
-  const candidates = [-1, 0, 1].flatMap(octave => chordPitches(chord, 4).map(value => value + octave * 12));
+  const candidates = [-1, 0, 1].flatMap(octave => chordPitches(chord, 4, false).map(value => value + octave * 12));
   return candidates.reduce((best, value) => Math.abs(value - pitch) < Math.abs(best - pitch) ? value : best);
 }
 

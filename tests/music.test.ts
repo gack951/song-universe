@@ -20,6 +20,19 @@ test("jazz swing lightens with tempo and sometimes stays straight", () => {
   }
 });
 
+test("every genre varies between simple vintage and tension-rich modern harmony", () => {
+  for (const genre of genres) {
+    const plans = Array.from({ length: 64 }, (_, index) => createTrackPlan(`harmony-${genre}-${index}`, genre));
+    const vintage = plans.find(plan => plan.harmonyStyle === "ヴィンテージ");
+    const modern = plans.find(plan => plan.harmonyStyle === "モダン");
+    assert.ok(vintage && modern, `${genre} did not vary harmony style`);
+    assert.ok(vintage.chords.every(chord => !/(?:9|11|13)/.test(chord)), `${genre} vintage harmony has tensions`);
+    assert.ok(modern.chords.filter(chord => /(?:9|11|13)/.test(chord)).length >= modern.chords.length * .2, `${genre} modern harmony lacks tensions`);
+    const song = buildSong(modern);
+    assert.ok(song.notes.some(note => modern.instruments.harmony.includes(note.instrument) && note.pitch >= 74), `${genre} tensions were not voiced`);
+  }
+});
+
 test("plans are deterministic and stay inside every genre contract", () => {
   for (const genre of genres) {
     const first = createTrackPlan(`fixed-${genre}`, genre);
